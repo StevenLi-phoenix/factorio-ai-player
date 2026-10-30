@@ -448,7 +448,7 @@ local function skill_deconstruct(character, p)
 end
 
 -- -------------------------------------------------------------------------
--- return_home() — walk back to the home anchor.
+-- return_home() — start walking back to the home anchor (takes game time).
 -- -------------------------------------------------------------------------
 local function skill_return_home(character, _)
   local home = storage.ai_player and storage.ai_player.home_position
@@ -456,8 +456,8 @@ local function skill_return_home(character, _)
   local surface = character.surface
   local sp = surface.find_non_colliding_position("character", {x = home.x, y = home.y}, 8, 0.5)
   if not sp then return false, "return_home: home area is blocked" end
-  character.teleport(sp)
-  return true, string.format("returned home to {%d,%d}", home.x, home.y)
+  local ok, detail = AIMovement.walk_to(character, sp)
+  return ok, "return_home: " .. detail
 end
 
 -- -------------------------------------------------------------------------
@@ -517,9 +517,9 @@ local function skill_research(character, p)
 end
 
 -- -------------------------------------------------------------------------
--- goto(position) — teleport the character to an arbitrary map coordinate.
--- Use when you need to reach a location before performing other actions
--- (e.g. inspecting a distant outpost or approaching a ghost cluster manually).
+-- goto(position) — start walking to an arbitrary map coordinate. The walk
+-- continues over the following ticks; its outcome (arrived / blocked / timeout)
+-- is reported in the next turn's action results.
 -- -------------------------------------------------------------------------
 local function skill_goto(character, p)
   local pos = p.position
@@ -529,8 +529,7 @@ local function skill_goto(character, p)
   local surface = character.surface
   local target = {x = tonumber(pos.x), y = tonumber(pos.y)}
   local safe = surface.find_non_colliding_position("character", target, 5, 0.5) or target
-  character.teleport(safe)
-  return true, string.format("moved to (%.0f, %.0f)", safe.x, safe.y)
+  return AIMovement.walk_to(character, safe)
 end
 
 -- -------------------------------------------------------------------------

@@ -5,6 +5,7 @@
 
 require("scripts.character")
 require("scripts.registry")
+require("scripts.movement")
 require("scripts.perception")
 require("scripts.primitives")
 require("scripts.queries")
@@ -31,6 +32,10 @@ remote.add_interface("ai_player", {
     entry.skill = skill
     local ok, detail = AISkills.run(character, entry)
     return { ok = ok, detail = detail or "" }
+  end,
+  -- Walk in progress (nil when idle) and the outcome of the last finished walk.
+  walk_status = function()
+    return { walking = AIMovement.status(), last = storage.ai_player and storage.ai_player.walk_result }
   end,
   -- Discovery: sorted list of valid skill names.
   list_skills = function()
@@ -233,6 +238,8 @@ local function init_storage()
   s.memory           = s.memory or AIBrain.init_memory()
   s.machines         = s.machines or {}   -- registry.lua: unit_number -> LuaEntity
   s.last_reconcile_tick = s.last_reconcile_tick or 0
+  s.walk             = s.walk or nil      -- movement.lua: walk in progress
+  s.walk_result      = s.walk_result or nil
   -- Autonomous on_tick decision loop on by default; an external harness can
   -- disable it (set_autonomy) so it doesn't contend with skill calls. The
   -- `~= false` keeps an explicit false across re-init instead of resetting it.
@@ -436,6 +443,10 @@ script.on_event(defines.events.on_tick, function(event)
     storage.ai_player.respawn_tick = nil
     AICharacter.spawn_ai_player()
   end
+
+  -- Keep an in-progress walk going. Before the autonomy gate below: an external
+  -- harness driving skills with autonomy off still needs its walks to advance.
+  AIMovement.step()
 
   -- Expire stale pending requests
   AIBrain.process_pending(tick)

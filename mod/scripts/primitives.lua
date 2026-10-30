@@ -178,7 +178,7 @@ local function action_move(character, action)
     return
   end
   -- Cap per-move distance to curb rapid wandering (the home anchor + prompt do
-  -- the rest). A single teleport never exceeds 16 tiles.
+  -- the rest). A single move never exceeds 16 tiles.
   local dist = math.max(1, math.min(action.distance or 10, 16))
   local offsets = {
     [defines.direction.north]     = {x=0,        y=-1},
@@ -206,11 +206,12 @@ local function action_move(character, action)
 
   if not best then
     debug_print("move " .. action.direction .. ": all tiles blocked, not moving")
-    return
+    return false, "move " .. action.direction .. ": blocked, not moving"
   end
 
-  character.teleport(best)
-  debug_print(string.format("Moved %s to {%.1f, %.1f}", action.direction, best.x, best.y))
+  local ok, detail = AIMovement.walk_to(character, best)
+  debug_print(string.format("Move %s toward {%.1f, %.1f}: %s", action.direction, best.x, best.y, detail))
+  return ok, detail
 end
 
 local function action_mine(character, action)

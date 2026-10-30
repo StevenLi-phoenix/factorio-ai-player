@@ -1,4 +1,17 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.0
+Date: 2026-10-30
+  Changes:
+    - BREAKING: move, goto and return_home no longer teleport. They start a
+      walk (scripts/movement.lua) that the character completes over the
+      following ticks; the outcome (arrived / blocked / timeout) is appended to
+      the next turn's action results. goto keeps its name and parameters.
+      Prompts that assumed instant arrival must check the result next turn.
+  Features:
+    - AIMovement: asynchronous straight-line walking driven from on_tick
+      (also while autonomy is disabled). No pathfinding; a blocked walk fails
+      after ~45 ticks without progress instead of waiting for the timeout.
+---------------------------------------------------------------------------------------------------
 Version: 0.4.2
 Date: 2026-08-29
   Features:

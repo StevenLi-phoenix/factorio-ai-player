@@ -210,8 +210,8 @@ Skills are the primary interface between the LLM and the game. The LLM picks a s
 | `research` | `tech` _(optional)_ | Queues a technology; auto-picks the next logical tech if `tech` is omitted. |
 | `loot_chests` | _(none)_ | Pulls items from nearby chests into the AI's inventory. |
 | `deposit_to_chest` | _(none)_ | Deposits excess inventory items into nearby chests. |
-| `return_home` | _(none)_ | Teleports back to the AI's base anchor point. |
-| `goto` | `position` | Teleports to `{"x": N, "y": N}` for manual positioning. |
+| `return_home` | _(none)_ | Starts walking back to the AI's base anchor point (asynchronous; takes game time). |
+| `goto` | `position` | Starts walking to `{"x": N, "y": N}`. Straight-line walk over the following ticks; the outcome (`arrived`/`blocked`/`timeout`) is reported in the next action results. |
 
 Primitive actions (`place`, `mine`, `craft`, `insert`, `take`, `chat`, `wait`, …) are available as a fallback for operations no skill covers.
 
