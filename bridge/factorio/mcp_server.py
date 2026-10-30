@@ -453,6 +453,22 @@ def production_stats(window: str = "1m", names: list[str] | None = None,
 
 
 @mcp.tool()
+def map_view(x: float | None = None, y: float | None = None, radius: int = 20,
+             to_x: float | None = None, to_y: float | None = None) -> str:
+    """Character-grid map of the area around (x, y) (default: the AI character),
+    one glyph per tile, radius 4-40: water ~, trees T, rocks R, cliffs C, ore
+    f/c/k/s/u/O, belts as arrows, buildings by letter, ghosts g, the character @,
+    unexplored ? (fog). Walking is a straight line with no pathfinding, so give
+    to_x/to_y to trace that line (*) and learn what blocks it first (water, a
+    tree, a building) before calling goto. The legend is in the result."""
+    r = json.loads(_query("map_view", x=x, y=y, radius=radius, to_x=to_x, to_y=to_y))
+    if "text" not in r:
+        return json.dumps(r, indent=2)
+    meta = {k: r[k] for k in ("character", "path", "note") if r.get(k) is not None}
+    return r["text"] + "\n\nlegend: " + json.dumps(r["legend"], sort_keys=True) + "\n" + json.dumps(meta)
+
+
+@mcp.tool()
 def belt_line(at: float, start: float, end: float, horizontal: bool = True) -> str:
     """Walk a belt row tile by tile and report gaps/obstructions, each belt's
     direction and per-lane contents. horizontal=True scans tile row y=at from tile x=start to
@@ -477,6 +493,38 @@ def power_report() -> str:
     surface with pole count and bounding box. More than one network means
     something is islanded, the usual cause of a built block sitting at no_power."""
     return _query("power_report")
+
+
+@mcp.tool()
+def silo_status() -> str:
+    """Rocket silos of the force on the AI's surface: rocket parts built, phase,
+    whether the rocket is ready to launch, status and cargo, plus the launches
+    recorded so far (tick, silo, cargo)."""
+    return _query("silo_status")
+
+
+@mcp.tool()
+def platforms() -> str:
+    """Space Age: every space platform of the force: state, paused, speed,
+    location (at a planet or between two), schedule stops and hub items."""
+    return _query("platforms")
+
+
+@mcp.tool()
+def launch_rocket(x: float | None = None, y: float | None = None) -> str:
+    """Walk to the nearest rocket silo (or the one nearest {x,y}) and launch its
+    rocket. Fails with the parts count until the silo has built the rocket; a
+    rocket still rising says so (call again). Cargo is whatever was inserted
+    into the silo."""
+    return _skill("launch_rocket", position={"x": x, "y": y} if x is not None and y is not None else None)
+
+
+@mcp.tool()
+def order_platform(name: str) -> str:
+    """Space Age: order a new space platform above the planet the AI stands on.
+    Needs rocket-silo research; the platform waits for a starter pack that a
+    silo launches."""
+    return _skill("order_platform", name=name)
 
 
 @mcp.tool()

@@ -517,6 +517,31 @@ end)
 -- Character death
 -- -------------------------------------------------------------------------
 
+-- -------------------------------------------------------------------------
+-- Rocket launches — the end of a run. Recorded in storage.ai_player.launches
+-- (read back by the silo_status query) and announced in chat.
+-- -------------------------------------------------------------------------
+script.on_event(defines.events.on_rocket_launched, function(event)
+  if not storage.ai_player then return end
+  local silo = event.rocket_silo
+  local cargo = {}
+  local ok, inv = pcall(function() return event.rocket.cargo_pod.get_inventory(defines.inventory.cargo_unit) end)
+  if ok and inv then
+    for i = 1, #inv do
+      local st = inv[i]
+      if st.valid_for_read then cargo[st.name] = (cargo[st.name] or 0) + st.count end
+    end
+  end
+  local launches = storage.ai_player.launches or {}
+  storage.ai_player.launches = launches
+  launches[#launches + 1] = {
+    tick = event.tick,
+    silo = silo and silo.valid and {x = silo.position.x, y = silo.position.y} or nil,
+    cargo = cargo,
+  }
+  game.print(string.format("[AI] ROCKET LAUNCHED at tick %d", event.tick), {r = 1, g = 0.9, b = 0.3})
+end)
+
 script.on_event(defines.events.on_entity_died, function(event)
   if not storage.ai_player then return end
   if event.entity == storage.ai_player.character then

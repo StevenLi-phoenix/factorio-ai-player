@@ -655,11 +655,94 @@ local function skill_build_plan(character, p)
 end
 
 -- -------------------------------------------------------------------------
+-- launch_rocket([position]) — walk to the nearest rocket silo and launch its
+-- rocket, like pressing the launch button in the silo window. Returns at once:
+-- a silo without a finished rocket fails with the parts count, a rocket still
+-- rising says so (call again), and a launch is recorded by the
+-- on_rocket_launched handler in control.lua. Cargo is whatever was inserted
+-- into the silo (insert primitive).
+-- -------------------------------------------------------------------------
+local function skill_launch_rocket(character, p)
+  local surface = character.surface
+  local center = (p.position and tonumber(p.position.x) and tonumber(p.position.y))
+    and {x = tonumber(p.position.x), y = tonumber(p.position.y)} or character.position
+  local silos = surface.find_entities_filtered{type = "rocket-silo", force = character.force}
+  local silo, sd = nil, math.huge
+  for _, e in ipairs(silos) do
+    local dx, dy = e.position.x - center.x, e.position.y - center.y
+    local d = dx * dx + dy * dy
+    if d < sd then sd = d; silo = e end
+  end
+  if not silo then return false, "launch_rocket: no rocket silo of your force on this surface" end
+
+  local info = AIQueries.silo_info(silo)
+  if info.launching then return false, "launch_rocket: the silo " .. AIQueries.describe_silo(info) end
+  if not info.ready then
+    if not info.has_rocket then
+      return false, string.format("launch_rocket: can't launch — %s (a rocket is built once the silo has %d parts)",
+        AIQueries.describe_silo(info), info.parts_required)
+    end
+    return false, "launch_rocket: " .. AIQueries.describe_silo(info) .. "; call launch_rocket again once it is ready"
+  end
+
+  local dx, dy = silo.position.x - character.position.x, silo.position.y - character.position.y
+  local reach = character.reach_distance + 4.5   -- silo is 9x9: its edge is ~4.5 tiles from the centre
+  if dx * dx + dy * dy > reach * reach then
+    -- Aim for a point just outside the silo on the character's side: the
+    -- centre is inside its collision box and can never be reached.
+    local d = math.sqrt(dx * dx + dy * dy)
+    local stand = {x = silo.position.x - dx / d * 7, y = silo.position.y - dy / d * 7}
+    local _, walk = AIMovement.walk_to(character, stand)
+    return false, "launch_rocket: out of reach of the silo — " .. walk .. "; call launch_rocket again"
+  end
+
+  local ok, res = pcall(function() return silo.launch_rocket() end)
+  if not ok then return false, "launch_rocket: the silo refused to launch: " .. tostring(res):gsub("^.-:%d+:%s*", "") end
+  if res == false then
+    return false, "launch_rocket: the silo refused to launch (" .. AIQueries.describe_silo(AIQueries.silo_info(silo)) .. ")"
+  end
+  return true, string.format("launching the rocket at (%.0f, %.0f); cargo: %s", silo.position.x, silo.position.y,
+    next(info.cargo) and helpers.table_to_json(info.cargo) or "none")
+end
+
+-- -------------------------------------------------------------------------
+-- order_platform(name) — Space Age: order a new space platform above the
+-- planet the character stands on. It waits for a starter pack, which a rocket
+-- silo holding one launches by itself (the platform_starter_pack item).
+-- -------------------------------------------------------------------------
+local function skill_order_platform(character, p)
+  if not script.active_mods["space-age"] then return false, "order_platform: Space Age is not active" end
+  local name = p.name
+  if type(name) ~= "string" or name == "" or #name > 40 then
+    return false, "order_platform: give name = a platform name (1-40 characters)"
+  end
+  local planet = character.surface.planet
+  if not planet then return false, "order_platform: you are not on a planet's surface" end
+  for _, existing in pairs(character.force.platforms) do
+    if existing.valid and existing.name == name then
+      return false, "order_platform: a platform called '" .. name .. "' already exists"
+    end
+  end
+  local ok, platform = pcall(function()
+    return character.force.create_space_platform{
+      name = name, planet = planet.name, starter_pack = "space-platform-starter-pack"}
+  end)
+  if not ok or not platform then
+    return false, "order_platform: the game refused a new platform (" .. tostring(platform)
+      .. ") — research rocket-silo first, which unlocks space platforms"
+  end
+  return true, string.format("ordered platform '%s' above %s; it waits for a space-platform-starter-pack launched from a silo",
+    name, planet.name)
+end
+
+-- -------------------------------------------------------------------------
 -- Registry + required params (mirrored in the bridge router prompt/validation)
 -- -------------------------------------------------------------------------
 AISkills.REGISTRY = {
   build_ghosts     = skill_build_ghosts,
   build_plan       = skill_build_plan,
+  launch_rocket    = skill_launch_rocket,
+  order_platform   = skill_order_platform,
   deconstruct      = skill_deconstruct,
   gather           = skill_gather,
   build_miner      = skill_build_miner,

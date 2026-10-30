@@ -717,6 +717,339 @@ REGISTRY.power_report = function(ctx, _)
 end
 
 -- -------------------------------------------------------------------------
+-- silo_status / platforms — the end of the run: rocket silos and (Space Age)
+-- space platforms of the force.
+-- -------------------------------------------------------------------------
+local function try(fn)
+  local ok, v = pcall(fn)
+  if ok then return v end
+  return nil
+end
+
+local function inventory_map(inv)
+  local out = {}
+  if inv then
+    for i = 1, #inv do
+      local st = inv[i]
+      if st.valid_for_read then out[st.name] = (out[st.name] or 0) + st.count end
+    end
+  end
+  return out
+end
+
+local function enum_name(enum, value)
+  if value == nil then return nil end
+  for k, v in pairs(enum) do if v == value then return k end end
+  return tostring(value)
+end
+
+-- Rocket progress of one silo: parts built, phase, whether the rocket can be
+-- launched, and what it carries. Shared with the launch_rocket skill.
+function AIQueries.silo_info(silo)
+  local code = try(function() return silo.rocket_silo_status end)
+  local phase = enum_name(defines.rocket_silo_status, code)
+  return {
+    x = silo.position.x, y = silo.position.y,
+    parts = try(function() return silo.rocket_parts end) or 0,
+    parts_required = try(function() return silo.prototype.rocket_parts_required end) or 100,
+    phase = phase,
+    has_rocket = try(function() return silo.rocket end) ~= nil,
+    ready = phase == "rocket_ready",
+    launching = code ~= nil and code >= defines.rocket_silo_status.launch_starting,
+    status = enum_name(defines.entity_status, try(function() return silo.status end)),
+    cargo = inventory_map(try(function() return silo.get_inventory(defines.inventory.rocket_silo_rocket) end)),
+  }
+end
+
+function AIQueries.describe_silo(info)
+  if info.launching then
+    return "a rocket is already launching (" .. tostring(info.phase):gsub("_", " ") .. ")"
+  end
+  if info.ready then return "the rocket is ready" end
+  if info.has_rocket then
+    return "the rocket is being prepared (" .. tostring(info.phase):gsub("_", " ") .. ")"
+  end
+  return string.format("no rocket yet: %d/%d rocket parts", info.parts, info.parts_required)
+end
+
+REGISTRY.silo_status = function(ctx, _)
+  local silos = {}
+  for _, e in ipairs(AIVision.filter_known(
+      ctx.surface.find_entities_filtered{type = "rocket-silo", force = ctx.force}, ctx.surface, ctx.force)) do
+    local info = AIQueries.silo_info(e)
+    info.summary = AIQueries.describe_silo(info)
+    silos[#silos + 1] = info
+  end
+  table.sort(silos, function(a, b)
+    if a.y ~= b.y then return a.y < b.y end
+    return a.x < b.x
+  end)
+  return {silos = silos, launches = storage.ai_player and storage.ai_player.launches or {}}
+end
+
+local function platform_location(p)
+  local loc = p.space_location
+  if loc then return {at = loc.name} end
+  local conn = p.space_connection
+  if conn then return {between = conn.from.name, to_location = conn.to.name, distance = p.distance} end
+  return {}
+end
+
+REGISTRY.platforms = function(ctx, _)
+  if not script.active_mods["space-age"] then return {error = "platforms: Space Age is not active"} end
+  local out = {}
+  for _, p in pairs(ctx.force.platforms) do
+    if p.valid then
+      local info = {
+        name = p.name, index = p.index,
+        state = enum_name(defines.space_platform_state, p.state),
+        paused = p.paused, speed = p.speed, has_hub = (p.hub and p.hub.valid) or false,
+      }
+      for k, v in pairs(platform_location(p)) do info[k] = v end
+      local sched = p.schedule
+      if sched and sched.records and #sched.records > 0 then
+        local stops = {}
+        for _, r in ipairs(sched.records) do stops[#stops + 1] = r.station or "?" end
+        info.schedule = {stops = stops, current = sched.current}
+      end
+      if info.has_hub then
+        info.hub_items = inventory_map(try(function() return p.hub.get_inventory(defines.inventory.hub_main) end))
+      end
+      out[#out + 1] = info
+    end
+  end
+  table.sort(out, function(a, b) return a.index < b.index end)
+  local here = try(function() return ctx.surface.platform end)
+  return {platforms = out, character_on = (here and here.valid) and here.name or ctx.surface.name}
+end
+
+-- -------------------------------------------------------------------------
+-- area_snapshot — JSON picture of a rectangle (<= 200x200 tiles) for the
+-- tools/lpf schematic renderer: entities with boxes/direction/status, resources
+-- per tile, water tiles, trees/rocks/cliffs. With fog of war on, only explored
+-- chunks are drawn and the skipped ones are listed.
+-- -------------------------------------------------------------------------
+local SNAP_SKIP = {
+  resource = true, tree = true, cliff = true, ["simple-entity"] = true, ["item-entity"] = true,
+  corpse = true, ["character-corpse"] = true, ["tile-ghost"] = true, ["item-request-proxy"] = true,
+  fish = true, ["rail-remnants"] = true, ["particle-source"] = true, explosion = true,
+  ["smoke-with-trigger"] = true, fire = true, ["flying-text"] = true, sticker = true,
+  stream = true, projectile = true, ["highlight-box"] = true, ["speech-bubble"] = true,
+}
+local function r2(v) local r = tonumber(string.format("%.2f", v)); if r == 0 then r = 0 end; return r end
+local function box_of(e)
+  local b = e.bounding_box
+  return {r2(b.left_top.x), r2(b.left_top.y), r2(b.right_bottom.x), r2(b.right_bottom.y)}
+end
+local function pt(v) if v and v.x then return {r2(v.x), r2(v.y)} end end
+
+REGISTRY.area_snapshot = function(ctx, p)
+  local x1, y1, x2, y2 = tonumber(p.x1), tonumber(p.y1), tonumber(p.x2), tonumber(p.y2)
+  if not (x1 and y1 and x2 and y2) then return {error = "area_snapshot: need x1, y1, x2, y2"} end
+  if x1 > x2 then x1, x2 = x2, x1 end
+  if y1 > y2 then y1, y2 = y2, y1 end
+  if x2 - x1 > 200 or y2 - y1 > 200 then return {error = "area_snapshot: limited to 200x200 tiles"} end
+  local surface, area = ctx.surface, {{x1, y1}, {x2, y2}}
+  local function known(x, y)
+    return not AIVision.enabled() or AIVision.is_known(surface, ctx.force, {x = x, y = y})
+  end
+  local unexplored = {}
+  for cy = math.floor(y1 / 32), math.floor((y2 - 1e-6) / 32) do
+    for cx = math.floor(x1 / 32), math.floor((x2 - 1e-6) / 32) do
+      if not known(cx * 32 + 16, cy * 32 + 16) then unexplored[#unexplored + 1] = {cx, cy} end
+    end
+  end
+  local entities, obstacles, resources = {}, {}, {}
+  for _, e in ipairs(surface.find_entities_filtered{area = area}) do
+    if e.valid and known(e.position.x, e.position.y) then
+      local t = e.type
+      if t == "resource" then
+        if e.position.x >= x1 and e.position.x < x2 and e.position.y >= y1 and e.position.y < y2 then
+          resources[e.name] = resources[e.name] or {}
+          table.insert(resources[e.name], {math.floor(e.position.x), math.floor(e.position.y), e.amount})
+        end
+      elseif t == "tree" or t == "simple-entity" or t == "cliff" then
+        local b = box_of(e)
+        obstacles[#obstacles + 1] = {b[1], b[2], b[3], b[4], t == "tree" and "tree" or (t == "cliff" and "cliff" or "rock")}
+      elseif not SNAP_SKIP[t] then
+        local ghost = t == "entity-ghost"
+        local rec = {
+          name = ghost and e.ghost_name or e.name, type = ghost and e.ghost_type or t,
+          x = r2(e.position.x), y = r2(e.position.y), dir = try(function() return e.direction end) or 0,
+          box = box_of(e), force = e.force and e.force.name or "neutral",
+        }
+        if ghost then rec.ghost = true end
+        rec.status = try(function() return enum_name(defines.entity_status, e.status) end)
+        if rec.type == "assembling-machine" or rec.type == "furnace" then
+          local r = try(function() return e.get_recipe() end)
+          if r then rec.recipe = type(r) == "string" and r or r.name end
+        elseif rec.type == "underground-belt" then
+          local u = try(function() return e.belt_to_ground_type end)
+          if u == "input" or u == "output" then rec.ug = u end
+        elseif rec.type == "inserter" and not ghost then
+          rec.pickup, rec.drop = pt(try(function() return e.pickup_position end)), pt(try(function() return e.drop_position end))
+        elseif rec.type == "mining-drill" and not ghost then
+          rec.out = pt(try(function() return e.drop_position end))
+        end
+        entities[#entities + 1] = rec
+      end
+    end
+  end
+  local water = {}
+  local tiles = try(function() return surface.find_tiles_filtered{area = area, collision_mask = "water_tile"} end)
+  for _, tile in ipairs(tiles or {}) do
+    if known(tile.position.x, tile.position.y) then water[#water + 1] = {tile.position.x, tile.position.y} end
+  end
+  return {tick = game.tick, area = {x1, y1, x2, y2}, unexplored_chunks = unexplored,
+          entities = entities, resources = resources, water = water, obstacles = obstacles}
+end
+
+-- -------------------------------------------------------------------------
+-- map_view — the area around {x,y} (default: the character) as a character
+-- grid a model can read, one glyph per tile, with a legend. Walking is a
+-- straight line with no pathfinding, so `to = {x, y}` also traces that line
+-- with the engine's own collision test for a character and names the first
+-- thing in the way (water, a tree, a building) before the model commits to goto.
+-- -------------------------------------------------------------------------
+local RES_GLYPH = {["iron-ore"] = "f", ["copper-ore"] = "c", coal = "k", stone = "s", ["uranium-ore"] = "u", ["crude-oil"] = "O"}
+local TYPE_GLYPH = {
+  ["assembling-machine"] = "A", furnace = "F", ["mining-drill"] = "D", lab = "L", container = "B",
+  ["logistic-container"] = "B", inserter = "i", ["electric-pole"] = "+", pipe = "=", ["pipe-to-ground"] = "=",
+  ["storage-tank"] = "S", generator = "E", boiler = "b", ["offshore-pump"] = "o", ["underground-belt"] = ")",
+  splitter = "Y", ["ammo-turret"] = "X", ["electric-turret"] = "X", ["fluid-turret"] = "X", wall = "W", gate = "W",
+  ["rocket-silo"] = "H", car = "V", locomotive = "V", ["cargo-wagon"] = "V", ["fluid-wagon"] = "V", tank = "V",
+  ["straight-rail"] = "%", ["curved-rail-a"] = "%", ["curved-rail-b"] = "%", ["half-diagonal-rail"] = "%",
+  ["train-stop"] = "%", ["rail-signal"] = "%", ["rail-chain-signal"] = "%", radar = "R", roboport = "P",
+  reactor = "N", ["solar-panel"] = "E", accumulator = "E", ["heat-pipe"] = "=",
+}
+local BELT_ARROW = {[0] = "^", [4] = ">", [8] = "v", [12] = "<"}
+
+REGISTRY.map_view = function(ctx, p)
+  local c = center_of(ctx, p)
+  if not c then return {error = "map_view: no character and no x/y given"} end
+  local r = math.min(math.max(math.floor(num(p.radius, 20)), 4), 40)
+  local x1, y1 = math.floor(c.x) - r, math.floor(c.y) - r
+  local x2, y2 = math.floor(c.x) + r + 1, math.floor(c.y) + r + 1
+  local snap = REGISTRY.area_snapshot(ctx, {x1 = x1, y1 = y1, x2 = x2, y2 = y2})
+  if snap.error then return snap end
+
+  local W, H = x2 - x1, y2 - y1
+  local grid = {}
+  for j = 1, H do grid[j] = {}; for i = 1, W do grid[j][i] = "." end end
+  local function put(tx, ty, g)
+    local i, j = tx - x1 + 1, ty - y1 + 1
+    if i >= 1 and i <= W and j >= 1 and j <= H then grid[j][i] = g end
+  end
+  local function fill(box, g)
+    for ty = math.floor(box[2] + 1e-3), math.ceil(box[4] - 1e-3) - 1 do
+      for tx = math.floor(box[1] + 1e-3), math.ceil(box[3] - 1e-3) - 1 do put(tx, ty, g) end
+    end
+  end
+  local used = {}
+  for name, list in pairs(snap.resources) do
+    local g = RES_GLYPH[name] or "r"
+    used[g] = used[g] or name
+    for _, t in ipairs(list) do put(t[1], t[2], g) end
+  end
+  for _, t in ipairs(snap.water) do put(t[1], t[2], "~") end
+  for _, cc in ipairs(snap.unexplored_chunks) do
+    for ty = cc[2] * 32, cc[2] * 32 + 31 do for tx = cc[1] * 32, cc[1] * 32 + 31 do put(tx, ty, "?") end end
+  end
+  for _, o in ipairs(snap.obstacles) do fill(o, o[5] == "tree" and "T" or (o[5] == "cliff" and "C" or "R")) end
+  local blocking = {}
+  table.sort(snap.entities, function(a, b) return (a.ghost and 0 or 1) < (b.ghost and 0 or 1) end)
+  for _, e in ipairs(snap.entities) do
+    local g
+    if e.ghost then g = "g"
+    elseif e.type == "transport-belt" then g = BELT_ARROW[e.dir] or ">"
+    elseif e.force == "enemy" then g = e.type == "unit-spawner" and "N" or (e.type == "unit" and "e" or "x")
+    elseif e.type == "character" then g = "@"
+    else g = TYPE_GLYPH[e.type] or "#" end
+    fill(e.box, g)
+  end
+
+  -- Straight-line check toward `to`, independent of the window size.
+  local path
+  local tx, ty = p.to and tonumber(p.to.x) or tonumber(p.to_x), p.to and tonumber(p.to.y) or tonumber(p.to_y)
+  if tx and ty and ctx.character then
+    local from = ctx.character.position
+    local dx, dy = tx - from.x, ty - from.y
+    local len = math.sqrt(dx * dx + dy * dy)
+    path = {distance = round1(len), clear = true}
+    local steps = math.min(math.ceil(len * 2), 800)
+    for k = 1, steps do
+      local f = k / steps
+      local px, py = from.x + dx * f, from.y + dy * f
+      if k > 3 then  -- the character itself overlaps the first tiles
+        local ok, free = pcall(function()
+          return ctx.surface.can_place_entity{name = "character", position = {x = px, y = py}}
+        end)
+        if ok and not free then
+          local tile = ctx.surface.get_tile(math.floor(px), math.floor(py))
+          local by = (tile.name:find("water") and tile.name) or nil
+          if not by then
+            local e = ctx.surface.find_entities_filtered{position = {x = px, y = py}, radius = 1.2}
+            for _, z in ipairs(e) do
+              if z.type ~= "resource" and z.type ~= "character" and z.type ~= "item-entity" then by = z.name; break end
+            end
+          end
+          path.clear, path.blocked_at, path.blocked_by = false, {x = round1(px), y = round1(py)}, by or "unknown"
+          path.tiles_before_block = round1(f * len)
+          break
+        end
+      end
+      local gx, gy = math.floor(px), math.floor(py)
+      local i, j = gx - x1 + 1, gy - y1 + 1
+      if i >= 1 and i <= W and j >= 1 and j <= H and (grid[j][i] == "." or used[grid[j][i]]) then
+        grid[j][i] = "*"
+      end
+    end
+    put(math.floor(tx), math.floor(ty), "X")
+    if not path.clear then
+      path.hint = "walk_to goes straight toward the target and stops when blocked; goto a point beside the obstacle first, then on"
+    end
+  end
+
+  -- Text with a coordinate ruler: tick every 10 columns, y label every 5 rows.
+  local lines, ruler = {}, {}
+  for i = 1, W do
+    local x = x1 + i - 1
+    ruler[i] = " "
+    if x % 10 == 0 then ruler[i] = "|" end
+  end
+  local labels = {}
+  for i = 1, W do
+    local x = x1 + i - 1
+    if x % 10 == 0 then
+      local lab = tostring(x)
+      for k = 1, #lab do if i + k <= W then labels[i + k] = lab:sub(k, k) end end
+    end
+  end
+  local lab_row = {}
+  for i = 1, W do lab_row[i] = labels[i] or " " end
+  lines[1] = "     " .. table.concat(lab_row)
+  lines[2] = "     " .. table.concat(ruler)
+  for j = 1, H do
+    local y = y1 + j - 1
+    lines[#lines + 1] = string.format("%4s ", y % 5 == 0 and tostring(y) or "") .. table.concat(grid[j])
+  end
+  local legend = {
+    ["@"] = "the AI character", ["."] = "free ground", ["~"] = "water (impassable)", T = "tree", R = "rock",
+    C = "cliff", ["?"] = "unexplored (fog)", g = "ghost (planned build)", ["*"] = "straight path to `to`",
+    X = "`to` target / turret", ["> < ^ v"] = "transport belt (flow direction)", [")"] = "underground belt",
+    Y = "splitter", i = "inserter", ["+"] = "power pole", ["="] = "pipe", A = "assembler", F = "furnace",
+    D = "mining drill", L = "lab", B = "chest", E = "generator/solar/accumulator", b = "boiler", S = "tank",
+    H = "rocket silo", V = "vehicle", W = "wall/gate", N = "spawner/reactor", e = "enemy unit", x = "worm/enemy turret",
+    ["#"] = "other building",
+  }
+  for g, name in pairs(used) do legend[g] = name .. " ore/patch" end
+  return {x0 = x1, y0 = y1, width = W, height = H, character = ctx.character and
+            {x = round1(ctx.character.position.x), y = round1(ctx.character.position.y)} or nil,
+          text = table.concat(lines, "\n"), legend = legend, path = path,
+          note = "one glyph per 1x1 tile; column i is x = x0 + i, row j is y = y0 + j; y grows southward"}
+end
+
+-- -------------------------------------------------------------------------
 -- Dispatch
 -- -------------------------------------------------------------------------
 

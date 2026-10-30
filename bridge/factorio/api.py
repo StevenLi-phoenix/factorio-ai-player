@@ -43,6 +43,8 @@ ACTIONS: dict[str, list[str]] = {
 SKILLS: dict[str, list[str]] = {
     "build_ghosts":  [],
     "build_plan":    ["steps"],
+    "launch_rocket": [],
+    "order_platform": ["name"],
     "deconstruct":   [],
     "gather":        ["item"],
     "build_miner":   [],

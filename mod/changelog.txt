@@ -1,4 +1,23 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.9.0
+Date: 2026-10-30
+  Features:
+    - Skill launch_rocket: walk to the nearest rocket silo and launch its
+      rocket (like the launch button); a silo without a finished rocket fails
+      with the parts count. on_rocket_launched records each launch.
+    - Skill order_platform (Space Age): order a space platform above the
+      planet the character stands on.
+    - Queries silo_status (parts, phase, readiness, cargo, recorded launches)
+      and platforms (state, location, schedule, hub items). MCP tools.
+    - Query map_view: character-grid map around the character (terrain, ore,
+      trees/rocks/cliffs, buildings, ghosts, fog) with a legend; `to` traces
+      the straight walking line and names the first obstacle (walk_to has no
+      pathfinding). Query area_snapshot: JSON of a rectangle for tools/lpf
+      render-area. MCP tool map_view.
+  Bugfixes:
+    - launch_rocket walks to a point beside the silo, not its centre (inside
+      the collision box, never reachable).
+---------------------------------------------------------------------------------------------------
 Version: 0.8.1
 Date: 2026-10-30
   Bugfixes:
