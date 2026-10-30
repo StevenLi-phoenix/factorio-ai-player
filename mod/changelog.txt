@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.18.0
+Date: 2026-10-30
+  Features:
+    - Query map_overview: chunk-resolution map screen (resource patches, rocks,
+      forests, water, enemy bases as connected groups with centre, box, size,
+      a tile on the patch and distance). AIVision.known_chunks added.
+    - Query alerts: the in-game alert panel as the force's players see it.
+---------------------------------------------------------------------------------------------------
 Version: 0.17.0
 Date: 2026-10-30
   Features:

@@ -545,6 +545,25 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def map_overview(center_x: float | None = None, center_y: float | None = None, radius: int = 320) -> str:
+    """What the map screen would show, at chunk resolution, over known ground
+    (radius 32-640 around the AI or a center): resource patches per ore, rocks,
+    forests, water and enemy bases, each grouped into connected chunk areas
+    with a centre, a bounding box, a size, an `at` tile on the patch to goto/scan
+    and the distance from the AI. Nearest first, at most 60 groups."""
+    center = {"x": center_x, "y": center_y} if center_x is not None and center_y is not None else None
+    return _query("map_overview", center=center, radius=radius)
+
+
+@mcp.tool()
+def alerts() -> str:
+    """The in-game alert panel (turret out of ammo, entity destroyed, no power,
+    ...) grouped by type, oldest first. Needs a connected human player on the
+    force; headless it says so — battle_report is the headless equivalent."""
+    return _query("alerts")
+
+
+@mcp.tool()
 def find_buildable_area(width: int, height: int, near_x: float, near_y: float, max_distance: int = 50) -> str:
     """Nearest clear width x height rectangle of explored ground to (near_x,
     near_y): no water and nothing standing in it (trees are allowed and counted

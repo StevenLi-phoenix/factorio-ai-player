@@ -835,6 +835,46 @@ local function spatial(fn_name)
 end
 REGISTRY.find_buildable_area = spatial("find_buildable_area")
 REGISTRY.describe_prototype = spatial("describe_prototype")
+REGISTRY.map_overview = spatial("map_overview")
+
+-- alerts — the in-game alert panel (turret out of ammo, entity destroyed, no
+-- power, ...) as the force's players see it. In 2.x alerts live on players, so
+-- this needs a connected player of the force; headless it says so and
+-- battle_report covers the same ground.
+REGISTRY.alerts = function(ctx, _)
+  local out = {surface = ctx.surface.name, tick = game.tick, groups = {}}
+  local panel, pname
+  for _, pl in ipairs(game.connected_players) do
+    if pl.force == ctx.force then
+      pname = pl.name
+      local ok, by_surface = pcall(function() return pl.get_alerts({}) end)
+      if ok and type(by_surface) == "table" then panel = by_surface end
+      break
+    end
+  end
+  if not panel then
+    out.note = pname and ("player " .. pname .. " exposes no alert read")
+      or "no connected player on this force — in 2.x the alert panel lives on players; battle_report covers the same ground headless"
+    return out
+  end
+  local by_type = panel[ctx.surface.index]
+  if not by_type then return out end
+  local names = {}
+  for name, value in pairs(defines.alert_type) do names[value] = name end
+  for type_id, alerts in pairs(by_type) do
+    local entries = {}
+    for _, a in ipairs(alerts) do
+      local name, pos = "?", a.position
+      if a.target and a.target.valid then name = a.target.name; pos = a.target.position or pos
+      elseif a.prototype then name = a.prototype.name end
+      entries[#entries + 1] = {name = name, x = pos and round1(pos.x), y = pos and round1(pos.y), tick = a.tick}
+    end
+    table.sort(entries, function(x, y) return x.tick < y.tick end)
+    out.groups[#out.groups + 1] = {type = names[type_id] or tostring(type_id), count = #entries, alerts = entries}
+  end
+  table.sort(out.groups, function(a, b) return a.count > b.count end)
+  return out
+end
 
 -- route_belt / route_pipe — weighted A* between two endpoints on the real map
 -- (scripts/route/): returns build steps for build_plan (item, x, y, direction,

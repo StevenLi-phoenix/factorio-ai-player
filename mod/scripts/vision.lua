@@ -93,6 +93,21 @@ function AIVision.is_known(surface, force, pos)
   return explored_set(force, surface)[key(cx, cy)] == true or charted(force, surface, cx, cy)
 end
 
+-- Generated chunks inside the rectangle the force knows (all of them when fog of
+-- war is off). Returns a list of {cx, cy}.
+function AIVision.known_chunks(surface, force, x1, y1, x2, y2)
+  local out, fog = {}, AIVision.enabled()
+  for cy = math.floor(y1 / 32), math.floor(y2 / 32) do
+    for cx = math.floor(x1 / 32), math.floor(x2 / 32) do
+      if surface.is_chunk_generated({cx, cy})
+          and (not fog or AIVision.is_known(surface, force, {x = cx * 32 + 16, y = cy * 32 + 16})) then
+        out[#out + 1] = {cx, cy}
+      end
+    end
+  end
+  return out
+end
+
 local function viewers(surface, force)
   local out = {}
   local c = AICharacter.get_character()

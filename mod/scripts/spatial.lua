@@ -389,4 +389,116 @@ function M.describe_prototype(ctx, params)
   return out
 end
 
+-- map_overview {center?, radius?}: what the map screen shows a player, at
+-- chunk resolution, over all KNOWN ground (explored by agents or charted):
+-- resource patches, rock clusters, forests, water and enemy bases, each
+-- grouped into connected chunk areas with a centre, bounding box, size and
+-- distance. Enemy bases count as known once their chunk is known (they show on
+-- a player's map too).
+local OVERVIEW_DEFAULT_RADIUS, OVERVIEW_MAX_RADIUS = 320, 640
+
+function M.map_overview(ctx, params)
+  local c = ctx.character
+  local surface, force = ctx.surface, ctx.force
+  local center = c and c.position
+  if not center and not params.center then error("map_overview: no character, give center = {x, y}", 0) end
+  c = c or {position = center}
+  if params.center ~= nil then center = require_position(params.center, "map_overview center must be {x, y}") end
+  local r = math.max(32, math.min(tonumber(params.radius) or OVERVIEW_DEFAULT_RADIUS, OVERVIEW_MAX_RADIUS))
+  local chunks = AIVision.known_chunks(surface, force, center.x - r, center.y - r, center.x + r, center.y + r)
+
+  local names = {}
+  pcall(function()
+    for name, n in pairs(surface.get_resource_counts()) do
+      if n > 0 then names[#names + 1] = name end
+    end
+  end)
+  table.sort(names)
+
+  -- per category: chunk key -> count
+  local cats = {}
+  local function add(cat, cx, cy, n)
+    if n <= 0 then return end
+    cats[cat] = cats[cat] or {}
+    cats[cat][cx .. "," .. cy] = { cx = cx, cy = cy, n = n }
+  end
+  for _, ch in ipairs(chunks) do
+    local cx, cy = ch[1], ch[2]
+    local area = { { cx * 32, cy * 32 }, { cx * 32 + 32, cy * 32 + 32 } }
+    if surface.count_entities_filtered({ area = area, type = "resource", limit = 1 }) > 0 then
+      for _, name in ipairs(names) do
+        add(name, cx, cy, surface.count_entities_filtered({ area = area, name = name }))
+      end
+    end
+    add("rocks", cx, cy, surface.count_entities_filtered({ area = area, type = "simple-entity" }))
+    add("trees", cx, cy, surface.count_entities_filtered({ area = area, type = "tree" }))
+    pcall(function()
+      add("water", cx, cy, surface.count_tiles_filtered({ area = area, collision_mask = "water_tile" }))
+    end)
+    add("enemy base", cx, cy, surface.count_entities_filtered({ area = area, force = "enemy", type = { "unit-spawner", "turret" } }))
+  end
+
+  -- group each category into 4-connected chunk components
+  local groups = {}
+  for cat, cells in pairs(cats) do
+    local seen = {}
+    for k, cell in pairs(cells) do
+      if not seen[k] then
+        local stack, comp = { cell }, {}
+        seen[k] = true
+        while #stack > 0 do
+          local cur = table.remove(stack)
+          comp[#comp + 1] = cur
+          for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+            local nk = (cur.cx + d[1]) .. "," .. (cur.cy + d[2])
+            if cells[nk] and not seen[nk] then
+              seen[nk] = true
+              stack[#stack + 1] = cells[nk]
+            end
+          end
+        end
+        local total, sx, sy = 0, 0, 0
+        local x1, y1, x2, y2 = math.huge, math.huge, -math.huge, -math.huge
+        for _, cell in ipairs(comp) do
+          total = total + cell.n
+          sx, sy = sx + (cell.cx * 32 + 16) * cell.n, sy + (cell.cy * 32 + 16) * cell.n
+          x1, y1 = math.min(x1, cell.cx * 32), math.min(y1, cell.cy * 32)
+          x2, y2 = math.max(x2, cell.cx * 32 + 32), math.max(y2, cell.cy * 32 + 32)
+        end
+        local gx, gy = sx / total, sy / total
+        -- a patch's own tile nearest to its centre, so a walk or scan lands on it
+        local nearest = { x = gx, y = gy }
+        if cat ~= "rocks" and cat ~= "trees" and cat ~= "water" then
+          local filter = { position = { gx, gy }, radius = 48, limit = 64 }
+          if cat == "enemy base" then filter.force = "enemy"; filter.type = { "unit-spawner", "turret" } else filter.name = cat end
+          local best, bd
+          for _, e in ipairs(surface.find_entities_filtered(filter)) do
+            local dd = (e.position.x - gx) ^ 2 + (e.position.y - gy) ^ 2
+            if not bd or dd < bd then best, bd = e, dd end
+          end
+          if best then nearest = { x = best.position.x, y = best.position.y } end
+        end
+        groups[#groups + 1] = {
+          kind = cat, count = total, chunks = #comp,
+          center = { x = math.floor(gx + 0.5), y = math.floor(gy + 0.5) },
+          at = { x = nearest.x, y = nearest.y },
+          area = { x1 = x1, y1 = y1, x2 = x2, y2 = y2 },
+          distance = math.floor(math.sqrt((gx - c.position.x) ^ 2 + (gy - c.position.y) ^ 2) + 0.5),
+        }
+      end
+    end
+  end
+  table.sort(groups, function(a, b) return a.distance < b.distance end)
+  local out = {}
+  for i = 1, math.min(#groups, 60) do out[i] = groups[i] end
+  local want = 0
+  local ax, ay = math.floor((center.x - r) / 32), math.floor((center.y - r) / 32)
+  local bx, by = math.floor((center.x + r) / 32), math.floor((center.y + r) / 32)
+  want = (bx - ax + 1) * (by - ay + 1)
+  return {
+    center = { x = center.x, y = center.y }, radius = r, you = { x = c.position.x, y = c.position.y },
+    known_chunks = #chunks, total_chunks = want, groups = out, more = math.max(0, #groups - #out),
+  }
+end
+
 return AISpatial
