@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.21.0
+Date: 2026-10-30
+  Features:
+    - launch_rocket takes an optional platform: the rocket's cargo goes to that
+      platform hub (platform must be parked above this planet).
+    - Query layout_context: belts in an area, mining drills with their output
+      tile and what stands there, and what stands at given points.
+---------------------------------------------------------------------------------------------------
 Version: 0.20.0
 Date: 2026-10-30
   Features:

@@ -501,4 +501,80 @@ function M.map_overview(ctx, params)
   }
 end
 
+
+
+-- the first non-character/resource/item entity standing at pos, and its
+-- type; "nothing" on empty ground, "unexplored" on fog of war
+local function what_at(surface, force, pos)
+  if AIVision.enabled() and not AIVision.is_known(surface, force, pos) then return "unexplored" end
+  for _, t in ipairs(surface.find_entities_filtered({ position = pos, limit = 6 })) do
+    if t.valid and t.type ~= "character" and t.type ~= "resource" and t.type ~= "item-entity" then
+      return t.name, t.type
+    end
+  end
+  return "nothing"
+end
+
+-- layout_context {area = {x1, y1, x2, y2}, points = {{x, y}, ...}}: what a
+-- build check needs to know about the ground a plan will join: belts in the
+-- area (with direction), the mining drills (each with the one tile it
+-- outputs onto and what stands there) and the entity standing at each
+-- point. Known ground only; points on unexplored ground report
+-- "unexplored".
+function M.layout_context(ctx, params)
+  local surface = ctx.surface
+  local c = {force = ctx.force}
+  local a = params.area
+  local belts = {}
+  local drills = {}
+  if type(a) == "table" and #a == 4 then
+    local x1, y1 = math.min(a[1], a[3]), math.min(a[2], a[4])
+    local x2, y2 = math.max(a[1], a[3]), math.max(a[2], a[4])
+    x2, y2 = math.min(x2, x1 + 200), math.min(y2, y1 + 200)
+    local found = AIVision.filter_known(surface.find_entities_filtered({
+      area = { { x1, y1 }, { x2, y2 } },
+      type = { "transport-belt", "underground-belt", "splitter" },
+    }), surface, c.force)
+    for _, e in ipairs(found) do
+      local b = { x = e.position.x, y = e.position.y, direction = e.direction, type = e.type, name = e.name }
+      if e.type == "underground-belt" then b.underground_type = e.belt_to_ground_type end
+      belts[#belts + 1] = b
+      if #belts >= 2000 then break end
+    end
+    -- Mining drills: a drill outputs onto ONE tile (its drop_position), so a
+    -- build check needs the drill, that tile and what receives there.
+    local status_names = {}
+    for name, value in pairs(defines.entity_status) do status_names[value] = name end
+    local found_drills = AIVision.filter_known(surface.find_entities_filtered({
+      area = { { x1, y1 }, { x2, y2 } }, type = "mining-drill",
+    }), surface, c.force)
+    for _, e in ipairs(found_drills) do
+      local ok = pcall(function()
+        local status
+        local ok_s, st = pcall(function() return e.status end)
+        if ok_s and st ~= nil then status = status_names[st] or tostring(st) end
+        local into, into_type = what_at(surface, c.force, e.drop_position)
+        drills[#drills + 1] = {
+          x = e.position.x, y = e.position.y,
+          name = e.name,
+          direction = e.direction or 0,
+          drop = { x = e.drop_position.x, y = e.drop_position.y },
+          drop_into = into,
+          drop_into_type = into_type,
+          status = status,
+        }
+      end)
+      if not ok then end
+      if #drills >= 400 then break end
+    end
+  end
+  local at = {}
+  for i, pt in ipairs(params.points or {}) do
+    if i > 400 then break end
+    local pos = { x = tonumber(pt.x) or tonumber(pt[1]) or 0, y = tonumber(pt.y) or tonumber(pt[2]) or 0 }
+    at[i] = what_at(surface, c.force, pos)
+  end
+  return { belts = belts, drills = drills, at = at }
+end
+
 return AISpatial

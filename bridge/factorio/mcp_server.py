@@ -521,6 +521,15 @@ def launch_rocket(x: float | None = None, y: float | None = None) -> str:
 
 
 @mcp.tool()
+def layout_context(area: list[float] | None = None, points: list[dict] | None = None) -> str:
+    """What a build check needs about ground a plan will join: belts in
+    area = [x1, y1, x2, y2] (direction, underground type), mining drills with the
+    one tile each outputs onto and what stands there, and the entity standing at
+    each of points = [{x, y}]. Respects fog of war."""
+    return _query("layout_context", area=area, points=points)
+
+
+@mcp.tool()
 def order_platform(name: str) -> str:
     """Space Age: order a new space platform above the planet the AI stands on.
     Needs rocket-silo research; the platform waits for a starter pack that a

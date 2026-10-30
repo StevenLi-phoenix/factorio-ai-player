@@ -804,12 +804,32 @@ local function skill_launch_rocket(character, p)
     return false, "launch_rocket: out of reach of the silo — " .. walk .. "; call launch_rocket again"
   end
 
-  local ok, res = pcall(function() return silo.launch_rocket() end)
-  if not ok then return false, "launch_rocket: the silo refused to launch: " .. tostring(res):gsub("^.-:%d+:%s*", "") end
+  -- Optional destination: a platform parked above this planet takes the cargo into its
+  -- hub. (Riding along was tried and dropped: see changelog 0.21.0.)
+  local dest, plat
+  if p.platform ~= nil and p.platform ~= "" then
+    if not script.active_mods["space-age"] then return false, "launch_rocket: Space Age is not active" end
+    local fok, found = pcall(AISpace.find_platform, character.force, p.platform)
+    if not fok then return false, "launch_rocket: " .. (tostring(found):gsub("^.-:%d+:%s*", "")) end
+    plat = found
+    local planet = character.surface.planet
+    if not (planet and plat.space_location and plat.space_location.name == planet.name) then
+      return false, "launch_rocket: platform '" .. plat.name .. "' is not parked above " .. (planet and planet.name or "this surface")
+    end
+    if not (plat.hub and plat.hub.valid) then return false, "launch_rocket: platform '" .. plat.name .. "' has no hub yet" end
+    dest = {type = defines.cargo_destination.station, station = plat.hub}
+  end
+
+  local ok, res = pcall(function()
+    if dest then return silo.launch_rocket(dest) end
+    return silo.launch_rocket()
+  end)
+  if not ok then return false, "launch_rocket: the silo refused to launch: " .. (tostring(res):gsub("^.-:%d+:%s*", "")) end
   if res == false then
     return false, "launch_rocket: the silo refused to launch (" .. AIQueries.describe_silo(AIQueries.silo_info(silo)) .. ")"
   end
-  return true, string.format("launching the rocket at (%.0f, %.0f); cargo: %s", silo.position.x, silo.position.y,
+  return true, string.format("launching the rocket at (%.0f, %.0f)%s; cargo: %s", silo.position.x, silo.position.y,
+    plat and (" to platform '" .. plat.name .. "'") or "",
     next(info.cargo) and helpers.table_to_json(info.cargo) or "none")
 end
 

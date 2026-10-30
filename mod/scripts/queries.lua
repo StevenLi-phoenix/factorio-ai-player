@@ -836,6 +836,7 @@ end
 REGISTRY.find_buildable_area = spatial("find_buildable_area")
 REGISTRY.describe_prototype = spatial("describe_prototype")
 REGISTRY.map_overview = spatial("map_overview")
+REGISTRY.layout_context = spatial("layout_context")
 
 -- alerts — the in-game alert panel (turret out of ammo, entity destroyed, no
 -- power, ...) as the force's players see it. In 2.x alerts live on players, so
