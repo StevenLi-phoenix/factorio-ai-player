@@ -294,6 +294,129 @@ REGISTRY.get_character_state = function(ctx, p)
 end
 
 -- -------------------------------------------------------------------------
+-- analyze_factory — one-call diagnosis of everything stuck within `radius` of
+-- the point: machines grouped by (name, problem) with the nearest sample
+-- position and, for starved crafters, the ingredient they are short of. Saves
+-- the model a dozen inspect_entity calls. Idle-but-healthy states (an inserter
+-- waiting for items) are tallied under other_states, not reported as problems.
+-- -------------------------------------------------------------------------
+local AF_MAX_RADIUS = 150
+local AF_MAX_GROUPS = 15
+local AF_WORKING = { working = true, normal = true, charging = true,
+                     discharging = true, fully_charged = true }
+local AF_PROBLEMS = {
+  no_power = true, low_power = true, no_fuel = true, no_ingredients = true,
+  no_input_fluid = true, no_recipe = true, no_research_in_progress = true,
+  missing_required_fluid = true, no_minable_resources = true, output_full = true,
+  full_output = true, full_burnt_result_output = true,
+  not_enough_space_in_output = true, waiting_for_space_in_destination = true,
+  no_ammo = true, missing_science_packs = true,
+  not_plugged_in_electric_network = true, recipe_not_researched = true,
+  no_filter = true, item_ingredient_shortage = true,
+  fluid_ingredient_shortage = true, low_input_fluid = true,
+  networks_disconnected = true,
+}
+local AF_STARVED = { no_ingredients = true, item_ingredient_shortage = true,
+                     fluid_ingredient_shortage = true, no_input_fluid = true }
+
+-- Which recipe ingredients a stalled crafting machine lacks (best effort).
+local function missing_ingredients(e)
+  local result
+  pcall(function()
+    local recipe = e.get_recipe()
+    if not recipe then return end
+    local inv = e.get_inventory(defines.inventory.assembling_machine_input)
+      or e.get_inventory(defines.inventory.furnace_source)
+    local missing = {}
+    for _, ing in ipairs(recipe.ingredients) do
+      local have = 0
+      if ing.type == "item" then
+        have = inv and inv.get_item_count(ing.name) or 0
+      else
+        pcall(function() have = e.get_fluid_count(ing.name) end)
+      end
+      if have < (ing.amount or 1) then missing[#missing + 1] = ing.name end
+    end
+    if #missing > 0 then result = table.concat(missing, ", ") end
+  end)
+  return result
+end
+
+REGISTRY.analyze_factory = function(ctx, p)
+  local origin = center_of(ctx, p)
+  if not origin then return {error = "analyze_factory: no x/y given and no AI character"} end
+  local radius = math.max(1, math.min(num(p.radius, 40), AF_MAX_RADIUS))
+
+  local status_names = {}
+  for name, value in pairs(defines.entity_status) do status_names[value] = name end
+
+  local groups, others = {}, {}
+  local working, checked = 0, 0
+  for _, e in ipairs(ctx.surface.find_entities_filtered{
+      position = origin, radius = radius, force = ctx.force}) do
+    if e.valid and e.type ~= "character" then
+      local ok, st = pcall(function() return e.status end)
+      if ok and st ~= nil then
+        checked = checked + 1
+        local sname = status_names[st] or tostring(st)
+        local key = e.name .. "|" .. sname
+        if AF_WORKING[sname] then
+          working = working + 1
+        elseif not AF_PROBLEMS[sname] then
+          others[key] = (others[key] or 0) + 1
+        else
+          local g = groups[key]
+          if not g then
+            g = {name = e.name, problem = sname, count = 0, _d = math.huge}
+            groups[key] = g
+          end
+          g.count = g.count + 1
+          local d = dist(e.position, origin)
+          if d < g._d then
+            g._d, g._entity = d, e
+            g.sample = {x = math.floor(e.position.x * 2 + 0.5) / 2,
+                        y = math.floor(e.position.y * 2 + 0.5) / 2}
+          end
+        end
+      end
+    end
+  end
+
+  local problems, problem_count = {}, 0
+  for _, g in pairs(groups) do
+    problems[#problems + 1] = g
+    problem_count = problem_count + g.count
+  end
+  table.sort(problems, function(a, b)
+    if a.count ~= b.count then return a.count > b.count end
+    return a._d < b._d
+  end)
+  while #problems > AF_MAX_GROUPS do table.remove(problems) end
+  for _, g in ipairs(problems) do
+    if AF_STARVED[g.problem] and g._entity and g._entity.valid then
+      g.missing = missing_ingredients(g._entity)
+    end
+    g._entity, g._d = nil, nil
+  end
+
+  local other_list, other_count = {}, 0
+  for key, n in pairs(others) do
+    local name, st = key:match("^(.-)|(.*)$")
+    other_list[#other_list + 1] = {name = name, state = st, count = n}
+    other_count = other_count + n
+  end
+  table.sort(other_list, function(a, b) return a.count > b.count end)
+
+  local out = {
+    radius = radius, machines_checked = checked, working = working,
+    with_problems = problem_count, in_other_states = other_count,
+  }
+  if #problems > 0 then out.problems = problems end
+  if #other_list > 0 then out.other_states = other_list end
+  return out
+end
+
+-- -------------------------------------------------------------------------
 -- Dispatch
 -- -------------------------------------------------------------------------
 

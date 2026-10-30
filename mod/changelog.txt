@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.2
+Date: 2026-10-30
+  Features:
+    - Query analyze_factory: machines within a radius grouped by (name,
+      problem) with a sample position and the missing ingredient of starved
+      crafters; idle-but-healthy states are tallied separately. Also exposed as
+      an MCP tool.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.1
 Date: 2026-10-30
   Changes:

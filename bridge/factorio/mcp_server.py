@@ -411,6 +411,16 @@ def get_enemies(radius: int = 50, x: float | None = None, y: float | None = None
 
 
 @mcp.tool()
+def analyze_factory(radius: int = 40, x: float | None = None, y: float | None = None) -> str:
+    """One-call diagnosis of what is stuck around a point (defaults to the AI
+    character's position): machines grouped by (name, problem) with the nearest
+    sample position and, for starved crafters, the missing ingredient. Idle but
+    healthy states (inserters waiting for items) are counted separately, so
+    totals always add up. radius is capped at 150."""
+    return _query("analyze_factory", radius=radius, x=x, y=y)
+
+
+@mcp.tool()
 def get_character_state() -> str:
     """Live embodiment state of the AI character: position, health, walking and
     mining flags, home anchor distance, and the HAND-CRAFTING QUEUE with
