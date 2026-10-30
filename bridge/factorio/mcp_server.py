@@ -545,6 +545,15 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def list_registered_blueprints() -> str:
+    """Blueprint provenance registry: layouts made during this run (exported
+    from the map or compiled from the agent's own layout), oldest first, and
+    whether import_blueprint enforces it (mod setting
+    ai-player-enforce-blueprint-provenance)."""
+    return _query("list_registered_blueprints")
+
+
+@mcp.tool()
 def trace_belt(x: float, y: float) -> str:
     """Follow the belt line through the tile at (x, y) both ways: legs (runs of
     one direction, with lane fill %), how it starts and ends (dead end, what it

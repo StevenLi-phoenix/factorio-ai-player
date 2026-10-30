@@ -823,6 +823,13 @@ REGISTRY.platforms = function(ctx, _)
   return {platforms = out, character_on = (here and here.valid) and here.name or ctx.surface.name}
 end
 
+-- list_registered_blueprints — the provenance registry (blueprints made in this
+-- run), oldest first, and whether the gate is enforced.
+REGISTRY.list_registered_blueprints = function(_, _)
+  local list = AIBPRegistry.list()
+  return {enforced = AIBPRegistry.enforced(), total = #list, blueprints = list}
+end
+
 -- trace_belt{x, y} — follow the belt line through a tile (scripts/belts.lua):
 -- legs, start/end, feeders and takers, per-lane fill.
 REGISTRY.trace_belt = function(ctx, p) return AIBelts.trace(ctx, p) end

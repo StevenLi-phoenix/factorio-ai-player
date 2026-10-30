@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.15.0
+Date: 2026-10-30
+  Features:
+    - Optional blueprint provenance (setting ai-player-enforce-blueprint-provenance,
+      default off): import_blueprint refuses layouts that were not made in this
+      run; export_blueprint registers what it hands out; remote
+      register_blueprint records compiled layouts; query
+      list_registered_blueprints. Layouts are keyed by content (a 128-bit hash
+      of a canonical form), not by string, so re-encoded copies match. New
+      scripts/bp_registry.lua.
+---------------------------------------------------------------------------------------------------
 Version: 0.14.0
 Date: 2026-10-30
   Features:

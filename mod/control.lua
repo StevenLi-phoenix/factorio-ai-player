@@ -8,6 +8,7 @@ require("scripts.registry")
 require("scripts.movement")
 require("scripts.driving")
 require("scripts.belts")
+require("scripts.bp_registry")
 require("scripts.vision")
 require("scripts.perception")
 require("scripts.primitives")
@@ -44,6 +45,31 @@ remote.add_interface("ai_player", {
     return { fog_of_war = AIVision.enabled() }
   end,
   -- Walk in progress (nil when idle) and the outcome of the last finished walk.
+  -- Blueprint provenance (scripts/bp_registry.lua). With the setting on,
+  -- import_blueprint only accepts layouts exported or registered in this run.
+  set_blueprint_provenance = function(enabled)
+    settings.global["ai-player-enforce-blueprint-provenance"] = {value = enabled and true or false}
+    return { enforced = AIBPRegistry.enforced() }
+  end,
+  -- Record a blueprint string as made during the run (a layout compiler's
+  -- output, e.g. tools/lpf plan-to-blueprint). params = {string, source, note?}.
+  register_blueprint = function(params)
+    local p = params or {}
+    if type(p.string) ~= "string" or #p.string < 10 or type(p.source) ~= "string" or p.source == "" then
+      return { ok = false, detail = "register_blueprint needs string and source" }
+    end
+    local inv = game.create_inventory(1)
+    local ok, res = pcall(function()
+      local stack = inv[1]
+      if stack.import_stack(p.string) == 1 or not stack.valid_for_read or not stack.is_blueprint then
+        error("not a single valid blueprint string")
+      end
+      return AIBPRegistry.register(stack, {source = p.source, note = p.note})
+    end)
+    inv.destroy()
+    if not ok then return { ok = false, detail = tostring(res) } end
+    return { ok = true, key_hash = res.key_hash, entity_count = res.entity_count, already_registered = res.already_registered }
+  end,
   drive_status = function()
     return { driving = AIDriving.status(), last = storage.ai_player and storage.ai_player.drive_result }
   end,
@@ -167,6 +193,10 @@ remote.add_interface("ai_player", {
       e.destroy()
       return { ok = false, detail = "string is a blueprint book, not a single blueprint (import_err=" .. tostring(err) .. ")" }
     end
+    if AIBPRegistry.enforced() and not AIBPRegistry.is_registered((AIBPRegistry.key_of(e.stack))) then
+      e.destroy()
+      return { ok = false, detail = AIBPRegistry.REFUSAL }
+    end
     -- Attempt 1: build_blueprint (Factorio 1.x API — may be broken/changed in 2.0)
     local gs = e.stack.build_blueprint{
       surface = s, force = f,
@@ -239,6 +269,8 @@ remote.add_interface("ai_player", {
       include_station_names = true, include_trains = true, include_fuel = true,
     }
     local str = e.stack.export_stack()
+    -- every string handed out was made in this run: record it before it leaves
+    pcall(AIBPRegistry.register, e.stack, {source = "export"})
     e.destroy()
     if not str or str == "" then
       return { ok = false, detail = "export_stack returned empty" }
