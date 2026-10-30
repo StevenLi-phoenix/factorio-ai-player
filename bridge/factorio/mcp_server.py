@@ -528,6 +528,30 @@ def order_platform(name: str) -> str:
 
 
 @mcp.tool()
+def equip(gun: str | None = None, ammo: str | None = None, armor: str | None = None) -> str:
+    """Put items from the AI's inventory into its gun / ammo / armor slots (a new
+    gun takes an empty slot, ammo tops up the paired slot to one stack, armor
+    swaps; the old item returns to the inventory). Nothing is created."""
+    return _skill("equip", gun=gun, ammo=ammo, armor=armor)
+
+
+@mcp.tool()
+def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
+    """Load ammo from the AI's inventory into its gun turrets within radius that
+    hold fewer than per_turret rounds; walks to the nearest turret out of reach
+    (call again to continue)."""
+    return _skill("supply_turrets", ammo=ammo, per_turret=per_turret, radius=radius)
+
+
+@mcp.tool()
+def battle_report() -> str:
+    """Defence picture in one call: own entities below max health, turrets with
+    no ammo, and enemy clusters (size, top names, centre) with the distance to
+    the nearest own entity, nearest first."""
+    return _query("battle_report")
+
+
+@mcp.tool()
 def get_character_state() -> str:
     """Live embodiment state of the AI character: position, health, walking and
     mining flags, home anchor distance, and the HAND-CRAFTING QUEUE with

@@ -824,6 +824,94 @@ REGISTRY.platforms = function(ctx, _)
 end
 
 -- -------------------------------------------------------------------------
+-- battle_report — what a defender needs in one call: own entities below max
+-- health (healthy machines never lose any, so it is combat/collision damage),
+-- turrets with no ammo, and enemy clusters (8-tile cells, flood-filled) with the
+-- distance to the nearest own entity, nearest first. With fog of war on,
+-- enemies are limited to explored ground.
+-- -------------------------------------------------------------------------
+local TURRET_TYPES = {"ammo-turret", "electric-turret", "fluid-turret"}
+
+local function cluster_enemies(entities)
+  local cells = {}
+  for _, e in ipairs(entities) do
+    if e.valid then
+      local cx, cy = math.floor(e.position.x / 8), math.floor(e.position.y / 8)
+      local k = cx .. "," .. cy
+      local c = cells[k]
+      if not c then c = {cx = cx, cy = cy, count = 0, sx = 0, sy = 0, by_name = {}}; cells[k] = c end
+      c.count, c.sx, c.sy = c.count + 1, c.sx + e.position.x, c.sy + e.position.y
+      c.by_name[e.name] = (c.by_name[e.name] or 0) + 1
+    end
+  end
+  local clusters = {}
+  for _, cell in pairs(cells) do
+    if not cell.seen then
+      cell.seen = true
+      local stack, count, sx, sy, by_name = {cell}, 0, 0, 0, {}
+      while #stack > 0 do
+        local cl = table.remove(stack)
+        count, sx, sy = count + cl.count, sx + cl.sx, sy + cl.sy
+        for n, k in pairs(cl.by_name) do by_name[n] = (by_name[n] or 0) + k end
+        for dx = -1, 1 do for dy = -1, 1 do
+          local nc = cells[(cl.cx + dx) .. "," .. (cl.cy + dy)]
+          if nc and not nc.seen then nc.seen = true; stack[#stack + 1] = nc end
+        end end
+      end
+      clusters[#clusters + 1] = {count = count, center = {x = round1(sx / count), y = round1(sy / count)}, by_name = by_name}
+    end
+  end
+  return clusters
+end
+
+REGISTRY.battle_report = function(ctx, _)
+  local surface, force = ctx.surface, ctx.force
+  local out = {surface = surface.name, tick = game.tick}
+
+  local damaged = {}
+  for _, e in ipairs(surface.find_entities_filtered{force = force}) do
+    local ok, hp, max_hp = pcall(function() return e.health, e.max_health end)
+    if ok and hp and max_hp and max_hp > 0 and hp < max_hp then
+      damaged[#damaged + 1] = {name = e.name, x = round1(e.position.x), y = round1(e.position.y),
+        hp = math.floor(hp + 0.5), max_hp = math.floor(max_hp + 0.5), pct = math.floor(hp / max_hp * 100 + 0.5)}
+    end
+  end
+  table.sort(damaged, function(a, b) return a.pct < b.pct end)
+  while #damaged > 30 do table.remove(damaged) end
+  if #damaged > 0 then out.damaged = damaged end
+
+  local dry = {}
+  for _, e in ipairs(surface.find_entities_filtered{force = force, type = "ammo-turret"}) do
+    local inv = e.get_inventory(defines.inventory.turret_ammo)
+    if inv and inv.is_empty() then dry[#dry + 1] = {name = e.name, x = round1(e.position.x), y = round1(e.position.y)} end
+  end
+  if #dry > 0 then out.turrets_no_ammo = dry end
+
+  local enemies = AIVision.filter_known(surface.find_entities_filtered{force = "enemy"}, surface, force)
+  local clusters = cluster_enemies(enemies)
+  for _, cl in ipairs(clusters) do
+    local best, best_d
+    for _, e in ipairs(surface.find_entities_filtered{position = cl.center, radius = 120, force = force}) do
+      local d = dist(cl.center, e.position)
+      if not best_d or d < best_d then best_d, best = d, e.name end
+    end
+    cl.nearest = best and {name = best, distance = math.floor(best_d + 0.5)} or nil
+    local names = {}
+    for n in pairs(cl.by_name) do names[#names + 1] = n end
+    table.sort(names, function(a, b) return cl.by_name[a] > cl.by_name[b] end)
+    cl.top_names = {}
+    for i = 1, math.min(#names, 4) do cl.top_names[i] = string.format("%dx %s", cl.by_name[names[i]], names[i]) end
+    cl.by_name = nil
+  end
+  table.sort(clusters, function(a, b)
+    return (a.nearest and a.nearest.distance or math.huge) < (b.nearest and b.nearest.distance or math.huge)
+  end)
+  while #clusters > 10 do table.remove(clusters) end
+  if #clusters > 0 then out.enemy_clusters = clusters end
+  return out
+end
+
+-- -------------------------------------------------------------------------
 -- area_snapshot — JSON picture of a rectangle (<= 200x200 tiles) for the
 -- tools/lpf schematic renderer: entities with boxes/direction/status, resources
 -- per tile, water tiles, trees/rocks/cliffs. With fog of war on, only explored

@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.10.0
+Date: 2026-10-30
+  Features:
+    - Skill equip: move a gun / ammo / armor from the inventory into the
+      character's slots (nothing is created).
+    - Skill supply_turrets: load ammo from the inventory into nearby gun
+      turrets that are low; walks to the nearest one out of reach.
+    - Query battle_report: damaged own entities, turrets without ammo, enemy
+      clusters with distance to the nearest own entity (respects fog of war).
+---------------------------------------------------------------------------------------------------
 Version: 0.9.0
 Date: 2026-10-30
   Features:

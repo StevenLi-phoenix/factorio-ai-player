@@ -706,6 +706,127 @@ local function skill_launch_rocket(character, p)
 end
 
 -- -------------------------------------------------------------------------
+-- equip(gun?, ammo?, armor?) — put items from the main inventory into the
+-- character's gun / ammo / armor slots. A new gun goes to an empty slot (else
+-- swaps the selected one); ammo tops up the slot paired with the gun, up to a
+-- stack; armor swaps. Whatever was in the slot goes back to the inventory.
+-- Nothing is created: every item must already be in the inventory.
+-- -------------------------------------------------------------------------
+local function skill_equip(character, p)
+  local main = inv_of(character)
+  local done = {}
+  local gun_slot   -- gun slot i shoots from ammo slot i
+  local function check(name, wanted)
+    local proto = type(name) == "string" and prototypes.item[name]
+    if not proto then return "no item called '" .. tostring(name) .. "'" end
+    if proto.type ~= wanted then return string.format("%s is not %s item", name, wanted) end
+  end
+  local function swap_back(stack)
+    if stack.valid_for_read then
+      local n, c = stack.name, stack.count
+      local ins = main.insert{name = n, count = c}
+      if ins < c then character.surface.spill_item_stack{position = character.position, stack = {name = n, count = c - ins}} end
+    end
+  end
+
+  if p.gun then
+    local err = check(p.gun, "gun"); if err then return false, "equip: " .. err end
+    local guns = character.get_inventory(defines.inventory.character_guns)
+    local slot
+    for i = 1, #guns do if guns[i].valid_for_read and guns[i].name == p.gun then slot = i end end
+    if not slot then
+      if main.get_item_count(p.gun) == 0 then return false, "equip: no " .. p.gun .. " in inventory — craft or loot one first" end
+      for i = 1, #guns do if not guns[i].valid_for_read then slot = i; break end end
+      slot = slot or character.selected_gun_index or 1
+      main.remove{name = p.gun, count = 1}
+      local old = {name = guns[slot].valid_for_read and guns[slot].name, count = guns[slot].valid_for_read and guns[slot].count}
+      if old.name then swap_back(guns[slot]) end
+      guns[slot].set_stack{name = p.gun, count = 1}
+    end
+    gun_slot = slot
+    done[#done + 1] = p.gun .. " in gun slot " .. slot
+  end
+  if p.ammo then
+    local err = check(p.ammo, "ammo"); if err then return false, "equip: " .. err end
+    local ammo = character.get_inventory(defines.inventory.character_ammo)
+    local slot = gun_slot or character.selected_gun_index or 1
+    if slot > #ammo then slot = 1 end
+    local stack = ammo[slot]
+    local current = (stack.valid_for_read and stack.name == p.ammo) and stack.count or 0
+    local n = math.min(main.get_item_count(p.ammo), prototypes.item[p.ammo].stack_size - current)
+    if n <= 0 and current == 0 then return false, "equip: no " .. p.ammo .. " in inventory — craft some first" end
+    if n > 0 then
+      if stack.valid_for_read and stack.name ~= p.ammo then swap_back(stack); stack.clear() end
+      main.remove{name = p.ammo, count = n}
+      if current > 0 then stack.count = current + n else stack.set_stack{name = p.ammo, count = n} end
+    end
+    done[#done + 1] = string.format("%d %s in ammo slot %d", current + math.max(n, 0), p.ammo, slot)
+  end
+  if p.armor then
+    local err = check(p.armor, "armor"); if err then return false, "equip: " .. err end
+    local armor = character.get_inventory(defines.inventory.character_armor)[1]
+    if not (armor.valid_for_read and armor.name == p.armor) then
+      if main.get_item_count(p.armor) == 0 then return false, "equip: no " .. p.armor .. " in inventory — craft or loot one first" end
+      main.remove{name = p.armor, count = 1}
+      swap_back(armor)
+      armor.set_stack{name = p.armor, count = 1}
+    end
+    done[#done + 1] = p.armor .. " worn"
+  end
+  if #done == 0 then return false, "equip: give at least one of gun, ammo, armor (item names)" end
+  return true, "equipped: " .. table.concat(done, "; ")
+end
+
+-- -------------------------------------------------------------------------
+-- supply_turrets(ammo, per_turret?, radius?) — load ammo from the inventory into
+-- own gun turrets that are below `per_turret` (default 10) rounds. Walks to the
+-- nearest turret out of reach first; call again to continue.
+-- -------------------------------------------------------------------------
+local function skill_supply_turrets(character, p)
+  local ammo = p.ammo
+  if type(ammo) ~= "string" or not prototypes.item[ammo] or prototypes.item[ammo].type ~= "ammo" then
+    return false, "supply_turrets: give ammo = an ammo item name (e.g. firearm-magazine)"
+  end
+  local main = inv_of(character)
+  if main.get_item_count(ammo) == 0 then return false, "supply_turrets: no " .. ammo .. " in inventory" end
+  local want = math.max(1, math.floor(tonumber(p.per_turret) or 10))
+  local radius = math.min(tonumber(p.radius) or 40, 100)
+  local force = AICharacter.get_force()
+  local needy = {}
+  for _, e in ipairs(character.surface.find_entities_filtered{
+      type = "ammo-turret", force = force, position = character.position, radius = radius}) do
+    local inv = e.get_inventory(defines.inventory.turret_ammo)
+    if inv and inv.valid and inv.get_item_count(ammo) < want then needy[#needy + 1] = e end
+  end
+  if #needy == 0 then return false, "supply_turrets: no turret within " .. radius .. " tiles needs " .. ammo end
+  table.sort(needy, function(a, b)
+    local da, db = a.position, b.position
+    local c = character.position
+    return (da.x - c.x) ^ 2 + (da.y - c.y) ^ 2 < (db.x - c.x) ^ 2 + (db.y - c.y) ^ 2
+  end)
+  local filled, loaded, far = 0, 0, nil
+  for _, e in ipairs(needy) do
+    if character.can_reach_entity(e) then
+      local inv = e.get_inventory(defines.inventory.turret_ammo)
+      local n = math.min(want - inv.get_item_count(ammo), main.get_item_count(ammo))
+      if n > 0 then
+        local ins = inv.insert{name = ammo, count = n}
+        if ins > 0 then main.remove{name = ammo, count = ins}; loaded = loaded + ins; filled = filled + 1 end
+      end
+    elseif not far then
+      far = e
+    end
+  end
+  if far then
+    local _, walk = AIMovement.walk_to(character, {x = far.position.x, y = far.position.y + 2})
+    return filled > 0, string.format("loaded %d %s into %d turret(s); %d more out of reach — %s; call supply_turrets again",
+      loaded, ammo, filled, #needy - filled, walk)
+  end
+  if filled == 0 then return false, "supply_turrets: could not insert " .. ammo .. " (wrong ammo type for these turrets?)" end
+  return true, string.format("loaded %d %s into %d turret(s)", loaded, ammo, filled)
+end
+
+-- -------------------------------------------------------------------------
 -- order_platform(name) — Space Age: order a new space platform above the
 -- planet the character stands on. It waits for a starter pack, which a rocket
 -- silo holding one launches by itself (the platform_starter_pack item).
@@ -743,6 +864,8 @@ AISkills.REGISTRY = {
   build_plan       = skill_build_plan,
   launch_rocket    = skill_launch_rocket,
   order_platform   = skill_order_platform,
+  equip            = skill_equip,
+  supply_turrets   = skill_supply_turrets,
   deconstruct      = skill_deconstruct,
   gather           = skill_gather,
   build_miner      = skill_build_miner,

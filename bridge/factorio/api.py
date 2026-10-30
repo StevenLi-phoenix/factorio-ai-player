@@ -45,6 +45,8 @@ SKILLS: dict[str, list[str]] = {
     "build_plan":    ["steps"],
     "launch_rocket": [],
     "order_platform": ["name"],
+    "equip": [],
+    "supply_turrets": ["ammo"],
     "deconstruct":   [],
     "gather":        ["item"],
     "build_miner":   [],
