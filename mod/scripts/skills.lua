@@ -517,9 +517,32 @@ local function skill_research(character, p)
   local force = character.force
 
   if p.tech then
-    if try_queue(force, force.technologies[p.tech]) then
+    local tech = force.technologies[p.tech]
+    if try_queue(force, tech) then
       return true, "queued research: " .. p.tech .. " — feed a lab with science packs to progress"
     end
+    -- An explicit request that can't be met is reported, not silently swapped for another tech.
+    if not tech then return false, "research: unknown technology '" .. tostring(p.tech) .. "' (list_technologies shows the names)" end
+    if tech.researched then return false, "research: " .. p.tech .. " is already researched" end
+    for _, q in ipairs(force.research_queue or {}) do
+      if q.name == p.tech then return false, "research: " .. p.tech .. " is already in the queue" end
+    end
+    local missing = {}
+    for name, pre in pairs(tech.prerequisites) do
+      if not pre.researched then
+        missing[#missing + 1] = name .. (pre.prototype.research_trigger ~= nil
+          and " (a trigger tech: " .. AITriggers.describe(pre.prototype.research_trigger) .. ")" or "")
+      end
+    end
+    if #missing > 0 then
+      table.sort(missing)
+      return false, "research: can't queue " .. p.tech .. " yet — missing prerequisites: " .. table.concat(missing, "; ")
+    end
+    if tech.prototype.research_trigger ~= nil then
+      return false, "research: '" .. p.tech .. "' is a TRIGGER tech — it completes by doing, not queuing. "
+        .. AITriggers.describe(tech.prototype.research_trigger)
+    end
+    return false, "research: the game refused to queue " .. p.tech .. (tech.enabled and "" or " (it is not enabled)")
   end
   for _, name in ipairs(PREFERRED_TECH) do
     if try_queue(force, force.technologies[name]) then
@@ -543,6 +566,39 @@ local function skill_research(character, p)
     end
   end
   return false, "research: nothing to queue right now"
+end
+
+-- -------------------------------------------------------------------------
+-- cancel_research(tech) — remove a QUEUED technology that has not started.
+-- The one in progress is refused: dropping it would discard its progress.
+-- -------------------------------------------------------------------------
+local function skill_cancel_research(character, p)
+  local force = character.force
+  local name = p.tech
+  if type(name) ~= "string" or not force.technologies[name] then
+    return false, "cancel_research: give tech = a technology name from the queue"
+  end
+  local cur = force.current_research
+  if cur and cur.name == name then
+    return false, "cancel_research: " .. name .. " is the research in progress — cancelling would discard its progress"
+  end
+  local queue, idx = {}, nil
+  for i, t in ipairs(force.research_queue or {}) do
+    queue[#queue + 1] = t
+    if t.name == name then idx = i end
+  end
+  if not idx then
+    return false, "cancel_research: " .. name .. (force.technologies[name].researched and " is already researched" or " is not in the queue")
+  end
+  local head, progress = queue[1] and queue[1].name, force.research_progress
+  table.remove(queue, idx)
+  force.research_queue = queue   -- the API has no remove-one; write the queue back without it
+  -- a rewrite must not reset the head's progress (no tick passes in between)
+  local now = force.current_research
+  if head and now and now.name == head and force.research_progress < progress then force.research_progress = progress end
+  local names = {}
+  for _, t in ipairs(force.research_queue or {}) do names[#names + 1] = t.name end
+  return true, "removed " .. name .. " from the queue; queue now: " .. (#names > 0 and table.concat(names, ", ") or "empty")
 end
 
 -- -------------------------------------------------------------------------
@@ -894,6 +950,7 @@ AISkills.REGISTRY = {
   deposit_to_chest = skill_deposit_to_chest,
   return_home      = skill_return_home,
   research         = skill_research,
+  cancel_research  = skill_cancel_research,
   ["goto"]         = skill_goto,
 }
 

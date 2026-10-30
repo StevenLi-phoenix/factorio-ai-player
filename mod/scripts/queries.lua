@@ -824,6 +824,69 @@ REGISTRY.platforms = function(ctx, _)
 end
 
 -- -------------------------------------------------------------------------
+-- list_technologies(status?, search?, limit?) — the tech tree with the exact
+-- internal names `research` takes: status (researched, in-progress, queued,
+-- available = prerequisites done, trigger = prerequisites done and it completes
+-- by doing something, locked = prerequisites missing, all; default available), prerequisites and which
+-- are missing, the science bill, and for trigger techs the action that
+-- completes them. Also the live queue. Capped at `limit` rows (default 60).
+-- -------------------------------------------------------------------------
+local TECH_STATUS = {researched = true, ["in-progress"] = true, queued = true, available = true, trigger = true, locked = true, all = true}
+
+REGISTRY.list_technologies = function(ctx, p)
+  local want = p.status or "available"
+  if not TECH_STATUS[want] then return {error = "list_technologies: status must be researched, in-progress, queued, available, trigger, locked or all"} end
+  local search = type(p.search) == "string" and p.search:lower() or ""
+  local limit = math.min(math.max(math.floor(num(p.limit, 60)), 1), 300)
+  local force = ctx.force
+  local queue, qpos = {}, {}
+  for i, t in ipairs(force.research_queue or {}) do qpos[t.name] = i; queue[#queue + 1] = t.name end
+  local cur = force.current_research
+  local counts = {researched = 0, ["in-progress"] = 0, queued = 0, available = 0, trigger = 0, locked = 0}
+  local rows = {}
+  for name, tech in pairs(force.technologies) do
+    local status
+    if tech.researched then status = "researched"
+    elseif cur and cur.name == name then status = "in-progress"
+    elseif qpos[name] then status = "queued"
+    else
+      -- only techs whose prerequisites are all researched can be worked on now
+      local ready = tech.enabled
+      for _, pre in pairs(tech.prerequisites or {}) do if not pre.researched then ready = false end end
+      if not ready then status = "locked"
+      elseif try(function() return tech.prototype.research_trigger ~= nil end) then status = "trigger"
+      else status = "available" end
+    end
+    counts[status] = counts[status] + 1
+    if (want == "all" or want == status) and (search == "" or name:lower():find(search, 1, true)) then
+      local prereqs, missing = {}, {}
+      for pn, pre in pairs(tech.prerequisites or {}) do
+        prereqs[#prereqs + 1] = pn
+        if not pre.researched then missing[#missing + 1] = pn end
+      end
+      table.sort(prereqs); table.sort(missing)
+      local count = try(function() return tech.research_unit_count end) or 0
+      local bill = {}
+      for _, ing in ipairs(try(function() return tech.research_unit_ingredients end) or {}) do
+        bill[ing.name] = (ing.amount or 0) * count
+      end
+      local row = {name = name, status = status, prereqs = prereqs, missing = missing, bill = bill,
+        unit_time_s = math.floor((try(function() return tech.research_unit_energy end) or 0) / 60 + 0.5),
+        order = try(function() return tech.prototype.order end) or name}
+      local tr = try(function() return tech.prototype.research_trigger end)
+      if tr then row.trigger = AITriggers.describe(tr) end
+      rows[#rows + 1] = row
+    end
+  end
+  table.sort(rows, function(a, b) if a.order ~= b.order then return a.order < b.order end; return a.name < b.name end)
+  local total = #rows
+  while #rows > limit do table.remove(rows) end
+  return {filter = want, search = search ~= "" and search or nil, current = cur and cur.name,
+          progress = math.floor(force.research_progress * 100 + 0.5), queue = queue, counts = counts,
+          total_matching = total, techs = rows}
+end
+
+-- -------------------------------------------------------------------------
 -- battle_report — what a defender needs in one call: own entities below max
 -- health (healthy machines never lose any, so it is combat/collision damage),
 -- turrets with no ammo, and enemy clusters (8-tile cells, flood-filled) with the

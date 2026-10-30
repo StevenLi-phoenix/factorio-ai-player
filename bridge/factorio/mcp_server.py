@@ -545,6 +545,23 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def list_technologies(status: str = "available", search: str | None = None, limit: int = 60) -> str:
+    """The tech tree with the exact names `research` takes. status: researched,
+    in-progress, queued, available, trigger (completes by doing something, the
+    action is listed), locked or all. Each row has prerequisites (and which are
+    missing), the total science bill and seconds per unit. Also the live queue
+    and per-status counts. search filters by name substring."""
+    return _query("list_technologies", status=status, search=search, limit=limit)
+
+
+@mcp.tool()
+def cancel_research(tech: str) -> str:
+    """Remove a queued technology that has not started. The research in progress
+    cannot be cancelled (its progress would be lost)."""
+    return _skill("cancel_research", tech=tech)
+
+
+@mcp.tool()
 def drive_to(x: float, y: float, arrive_within: float = 3) -> str:
     """Walk to the nearest free car of the AI's force (within 30 tiles), fuel it
     from the AI's inventory, and drive it to (x, y). Asynchronous: the result
