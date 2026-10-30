@@ -5,6 +5,7 @@ description = "llm-play-factorio: schematic renderer, blueprint codec, layout li
 requires-python = ">=3.11"
 dependencies = [
     "pillow>=10.1",
+    "factorio-rcon-py>=0.0.4",   # render-area talks to the running game through ../../bridge
 ]
 
 [project.scripts]

@@ -31,5 +31,5 @@ uv run pytest                             # tests skip without the dump
 ```
 
 Tests that pin rollout numbers were calibrated on Factorio 2.0.77 data; on a 2.1 dump (rocket-part now takes one
-of each ingredient) they are skipped, the other 8 pass. `lpf render-area` needs the `factorio-mcp` bridge and a
-running server, so it is only useful alongside the source project.
+of each ingredient) they are skipped, the other 8 pass. `lpf render-area` asks the running game for the mod's `area_snapshot` query through the repo's `bridge/` (same
+`bridge/.env` as the MCP servers; run it from the repo's venv), or reads a saved snapshot with `--snapshot`.

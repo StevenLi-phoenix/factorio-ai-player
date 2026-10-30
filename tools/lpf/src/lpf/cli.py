@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -27,16 +26,28 @@ from .render import render
 from .scene import diff, from_blueprint, from_plan, from_snapshot
 from .sim.cli import add_sim_args, run_sim
 
-FACTORIO_MCP = REPO_ROOT / "factorio-mcp" / ".venv" / ("Scripts/factorio-mcp.exe" if os.name == "nt" else "bin/factorio-mcp")
-
-
 def fetch_snapshot(x1: float, y1: float, x2: float, y2: float) -> dict:
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    r = subprocess.run([str(FACTORIO_MCP), "snapshot", str(x1), str(y1), str(x2), str(y2)],
-                       capture_output=True, text=True, encoding="utf-8", env=env, timeout=120)
-    if r.returncode != 0:
-        raise RuntimeError(f"factorio-mcp snapshot failed: {r.stderr.strip()[-500:]}")
-    return json.loads(r.stdout)
+    """Ask the running game for the `area_snapshot` query (mod/scripts/queries.lua) over RCON,
+    through the repo's bridge, so it uses the same bridge/.env settings as the MCP servers."""
+    repo = Path(__file__).resolve().parents[4]   # the factorio-ai-player root, home of bridge/
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+    try:
+        from bridge.config import ConfigLoader
+        from bridge.factorio.rcon import RCONGateway
+    except ImportError as e:
+        raise RuntimeError(f"bridge dependencies missing ({e}); run from the repo's own venv "
+                           "or pass --snapshot with a saved snapshot JSON") from e
+    cfg = ConfigLoader().get()
+    # LPF_RCON_* point at another server (e.g. a test instance) without touching bridge/.env.
+    host = os.environ.get("LPF_RCON_HOST", cfg.rcon.host)
+    port = int(os.environ.get("LPF_RCON_PORT", cfg.rcon.port))
+    password = os.environ.get("LPF_RCON_PASSWORD", cfg.rcon.password)
+    r = RCONGateway(host, port, password).run_query(
+        "area_snapshot", {"x1": x1, "y1": y1, "x2": x2, "y2": y2})
+    if not isinstance(r, dict) or "error" in r:
+        raise RuntimeError(f"area_snapshot failed: {r}")
+    return r
 
 
 def _load_json_arg(s: str):

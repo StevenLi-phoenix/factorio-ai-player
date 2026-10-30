@@ -1,7 +1,7 @@
 """Scene: one normalized entity list, whatever it came from (live snapshot, blueprint, or plan).
 
 All three renderer entry points build a Scene and hand it to render.render():
-  - from_snapshot: the mod's `area_snapshot` RPC JSON (live map, explored ground only)
+  - from_snapshot: the mod's `area_snapshot` query JSON (live map, explored ground only)
   - from_blueprint: a decoded blueprint dict (in-run blueprints only; the gate lives in the mod)
   - from_plan: a designer's layout JSON, i.e. factorio-mcp build_plan steps, before anything exists
 """
