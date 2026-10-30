@@ -557,6 +557,8 @@ local function skill_goto(character, p)
   end
   local surface = character.surface
   local target = {x = tonumber(pos.x), y = tonumber(pos.y)}
+  local fog = AIVision.walk_goal_problem(character, target)
+  if fog then return false, "goto: " .. fog end
   local safe = surface.find_non_colliding_position("character", target, 5, 0.5) or target
   return AIMovement.walk_to(character, safe)
 end

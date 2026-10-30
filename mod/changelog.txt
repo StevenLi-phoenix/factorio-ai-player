@@ -1,4 +1,18 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.0
+Date: 2026-10-30
+  Features:
+    - Optional fog of war (runtime setting ai-player-fog-of-war, default off;
+      scripts/vision.lua). The engine never charts for a character without a
+      player, so queries could "see" ore the AI never approached. With the
+      setting on, get_resource_patch, inspect_entity, analyze_factory and
+      map_warnings only report entities in KNOWN chunks (explored by the AI or
+      charted by the force), get_enemies only VISIBLE ones, and goto refuses a
+      target that is unexplored and more than 64 tiles away. Exploration is
+      recorded either way, and the area around spawn is known from the start.
+      map_warnings charted_only now means "known chunks" and also works with
+      the setting off. Remote interface: set_fog_of_war.
+---------------------------------------------------------------------------------------------------
 Version: 0.7.0
 Date: 2026-10-30
   Features:

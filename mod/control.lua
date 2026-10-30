@@ -6,6 +6,7 @@
 require("scripts.character")
 require("scripts.registry")
 require("scripts.movement")
+require("scripts.vision")
 require("scripts.perception")
 require("scripts.primitives")
 require("scripts.queries")
@@ -33,6 +34,12 @@ remote.add_interface("ai_player", {
     entry.skill = skill
     local ok, detail = AISkills.run(character, entry)
     return { ok = ok, detail = detail or "" }
+  end,
+  -- Toggle the fog-of-war runtime setting (same as the Mod settings screen), so
+  -- an external harness can switch it without a restart.
+  set_fog_of_war = function(enabled)
+    settings.global["ai-player-fog-of-war"] = {value = enabled and true or false}
+    return { fog_of_war = AIVision.enabled() }
   end,
   -- Walk in progress (nil when idle) and the outcome of the last finished walk.
   walk_status = function()
@@ -475,6 +482,10 @@ script.on_event(defines.events.on_tick, function(event)
   -- Keep an in-progress walk going. Before the autonomy gate below: an external
   -- harness driving skills with autonomy off still needs its walks to advance.
   AIMovement.step()
+
+  -- Exploration bookkeeping for the optional fog of war (cheap; recorded even
+  -- while the setting is off so it can be enabled mid-game).
+  if tick % 30 == 0 then AIVision.update(AICharacter.get_character()) end
 
   -- Expire stale pending requests
   AIBrain.process_pending(tick)

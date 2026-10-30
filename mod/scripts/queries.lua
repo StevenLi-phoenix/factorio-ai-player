@@ -79,9 +79,9 @@ REGISTRY.get_resource_patch = function(ctx, p)
   if not center then return {error = "no position — pass x,y or spawn the character"} end
   local radius = math.min(num(p.radius, 48), 128)
 
-  local ents = ctx.surface.find_entities_filtered{
+  local ents = AIVision.filter_known(ctx.surface.find_entities_filtered{
     type = "resource", name = resource, position = center, radius = radius,
-  }
+  }, ctx.surface, ctx.force)
   if #ents == 0 then
     return {found = false, resource = resource, radius = radius}
   end
@@ -189,7 +189,7 @@ REGISTRY.inspect_entity = function(ctx, p)
   if p.name and p.name ~= "" then filter.name = p.name end
 
   local best, bestd = nil, math.huge
-  for _, e in ipairs(ctx.surface.find_entities_filtered(filter)) do
+  for _, e in ipairs(AIVision.filter_known(ctx.surface.find_entities_filtered(filter), ctx.surface, ctx.force)) do
     if e.valid and e.type ~= "character" then
       local d = dist(e.position, position)
       if d < bestd then best, bestd = e, d end
@@ -218,10 +218,10 @@ REGISTRY.get_enemies = function(ctx, p)
   if not center then return {error = "no position — pass x,y or spawn the character"} end
   local radius = math.min(num(p.radius, 50), 200)
 
-  local ents = ctx.surface.find_entities_filtered{
+  local ents = AIVision.filter_visible(ctx.surface.find_entities_filtered{
     position = center, radius = radius, force = "enemy",
     type = {"unit", "unit-spawner", "turret"},
-  }
+  }, ctx.surface, ctx.force)
 
   local list = {}
   local composition = {units = 0, spawners = 0, worms = 0}
@@ -352,8 +352,8 @@ REGISTRY.analyze_factory = function(ctx, p)
 
   local groups, others = {}, {}
   local working, checked = 0, 0
-  for _, e in ipairs(ctx.surface.find_entities_filtered{
-      position = origin, radius = radius, force = ctx.force}) do
+  for _, e in ipairs(AIVision.filter_known(ctx.surface.find_entities_filtered{
+      position = origin, radius = radius, force = ctx.force}, ctx.surface, ctx.force)) do
     if e.valid and e.type ~= "character" then
       local ok, st = pcall(function() return e.status end)
       if ok and st ~= nil then
@@ -422,8 +422,9 @@ end
 -- analyze_factory), grouped by problem, nearest-first, with positions.
 -- analyze_factory looks at a radius; this sweeps the whole surface. Idle but
 -- healthy inserters (waiting_for_source_items) are reported last, separately.
--- charted_only=true restricts it to chunks the force has charted, i.e. what a
--- player would see on the map; the default reports everything the force owns.
+-- charted_only=true restricts it to known chunks (explored by the AI character
+-- or charted by the force), i.e. what a player would see on the map; the
+-- default reports everything the force owns unless the fog-of-war setting is on.
 -- -------------------------------------------------------------------------
 local MW_MAX_PER_GROUP = 60
 local MW_MAX_IDLE = 20
@@ -446,10 +447,9 @@ REGISTRY.map_warnings = function(ctx, p)
       _d = (e.position.x - origin.x) ^ 2 + (e.position.y - origin.y) ^ 2,
     }
   end
-  for _, e in ipairs(surface.find_entities_filtered{force = force}) do
-    if e.valid and e.type ~= "character"
-       and (not charted_only or force.is_chunk_charted(surface,
-            {x = math.floor(e.position.x / 32), y = math.floor(e.position.y / 32)})) then
+  for _, e in ipairs(AIVision.filter_known(surface.find_entities_filtered{force = force},
+                                           surface, force, charted_only)) do
+    if e.valid and e.type ~= "character" then
       local ok, st = pcall(function() return e.status end)
       if ok and st ~= nil then
         checked = checked + 1
