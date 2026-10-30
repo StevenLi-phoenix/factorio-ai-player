@@ -823,6 +823,63 @@ REGISTRY.platforms = function(ctx, _)
   return {platforms = out, character_on = (here and here.valid) and here.name or ctx.surface.name}
 end
 
+-- trace_belt{x, y} — follow the belt line through a tile (scripts/belts.lua):
+-- legs, start/end, feeders and takers, per-lane fill.
+REGISTRY.trace_belt = function(ctx, p) return AIBelts.trace(ctx, p) end
+
+-- -------------------------------------------------------------------------
+-- list_trains — fleet overview (state, size, position, station, schedule,
+-- cargo; at most 20) and the names of the force's train stops, which are the
+-- only valid targets for set_train_schedule.
+-- -------------------------------------------------------------------------
+local function train_state_name(state)
+  for name, value in pairs(defines.train_state) do if value == state then return name end end
+  return tostring(state)
+end
+
+local function station_names(ctx)
+  local names, seen = {}, {}
+  local stops = ctx.surface.find_entities_filtered{type = "train-stop", force = ctx.force}
+  for _, stop in ipairs(AIVision.filter_known(stops, ctx.surface, ctx.force)) do
+    if stop.valid and not seen[stop.backer_name] then seen[stop.backer_name] = true; names[#names + 1] = stop.backer_name end
+  end
+  table.sort(names)
+  return names, seen
+end
+AIQueries.station_names = station_names
+
+REGISTRY.list_trains = function(ctx, _)
+  local out = {}
+  for _, t in ipairs(game.train_manager.get_trains{surface = ctx.surface}) do
+    if #out >= 20 then break end
+    local entry = {id = t.id, state = train_state_name(t.state), manual = t.manual_mode}
+    try(function()
+      local locos, wagons = 0, 0
+      for _, c in ipairs(t.carriages) do if c.type == "locomotive" then locos = locos + 1 else wagons = wagons + 1 end end
+      entry.locomotives, entry.wagons = locos, wagons
+      local front = t.carriages[1]
+      if front then entry.position = {x = round1(front.position.x), y = round1(front.position.y)} end
+    end)
+    try(function() if t.station then entry.at_station = t.station.backer_name end end)
+    try(function()
+      local sched = t.schedule
+      if sched and sched.records and #sched.records > 0 then
+        local stops = {}
+        for _, rec in ipairs(sched.records) do stops[#stops + 1] = rec.station or "(coordinates)" end
+        entry.schedule = stops
+        entry.next_stop = sched.records[sched.current] and sched.records[sched.current].station or nil
+      end
+    end)
+    try(function()
+      local cargo = {}
+      for _, item in ipairs(t.get_contents()) do cargo[item.name] = (cargo[item.name] or 0) + item.count end
+      if next(cargo) ~= nil then entry.cargo = cargo end
+    end)
+    out[#out + 1] = entry
+  end
+  return {trains = out, stations = (station_names(ctx))}
+end
+
 -- -------------------------------------------------------------------------
 -- list_technologies(status?, search?, limit?) — the tech tree with the exact
 -- internal names `research` takes: status (researched, in-progress, queued,

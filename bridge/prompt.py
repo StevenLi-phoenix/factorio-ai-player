@@ -33,6 +33,7 @@ Respond with a JSON ARRAY of skill and/or action objects. ONLY the array — no 
 - {"skill":"fuel_all"}                Top up every nearby burner that's low on fuel (uses your coal).
 - {"skill":"research"[,"tech":"automation"]}   Queue a technology on your force (picks one if you omit tech). REQUIRED before any research can progress — a lab does NOTHING until research is queued.
 - {"skill":"cancel_research","tech":"<name>"}   Remove a queued technology that has not started (the one in progress can't be cancelled).
+- {"skill":"set_train_schedule","train_id":N,"stops":[{"station":"Name","wait":"full"|"empty"|seconds}]}   Give a train a schedule (names from list_trains) and set it to automatic; warns when no locomotive has fuel.
 - {"skill":"return_home"}             Start walking back to your base anchor (use if you've wandered far). Takes game time; the outcome shows up in your next action results.
 - {"skill":"goto","position":{"x":N,"y":N}}   Start walking to any map coordinate. Takes game time: the route is found by the engine pathfinder (trees, water, buildings are walked around; unreachable goals fall back to a straight line) and "arrived"/"blocked"/"timeout" appears in your next action results. Use to reach a distant location (e.g. an oil outpost) before acting.
 

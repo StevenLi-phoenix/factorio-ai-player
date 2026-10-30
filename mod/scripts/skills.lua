@@ -569,6 +569,57 @@ local function skill_research(character, p)
 end
 
 -- -------------------------------------------------------------------------
+-- set_train_schedule(train_id, stops) — stops = [{station, wait?}], wait is
+-- "full", "empty" or seconds (default 5). Station names must be existing train
+-- stops of the force. Puts the train in automatic mode and warns when no
+-- locomotive has fuel (a schedule without fuel goes nowhere).
+-- -------------------------------------------------------------------------
+local function skill_set_train_schedule(character, p)
+  local id = tonumber(p.train_id)
+  if not id then return false, "set_train_schedule: need train_id (list_trains shows ids)" end
+  local stops = p.stops
+  if type(stops) ~= "table" or #stops == 0 then
+    return false, 'set_train_schedule: need stops = [{"station":"Name","wait":"full"|"empty"|<seconds>}]'
+  end
+  local ctx = {surface = character.surface, force = character.force}
+  local train
+  for _, t in ipairs(game.train_manager.get_trains{surface = character.surface}) do
+    if t.id == id then train = t; break end
+  end
+  if not train then return false, "set_train_schedule: no train " .. id .. " on this surface (list_trains)" end
+  local _, known = AIQueries.station_names(ctx)
+  local records = {}
+  for i, s in ipairs(stops) do
+    if type(s) ~= "table" or type(s.station) ~= "string" then
+      return false, "set_train_schedule: stop " .. i .. " needs a station name"
+    end
+    if not known[s.station] then
+      return false, 'set_train_schedule: no train stop called "' .. s.station .. '" (names are case-sensitive; build the stop first)'
+    end
+    local cond
+    local wait = s.wait
+    if wait == "full" then cond = {type = "full", compare_type = "or"}
+    elseif wait == "empty" then cond = {type = "empty", compare_type = "or"}
+    elseif type(wait) == "number" and wait > 0 then cond = {type = "time", compare_type = "or", ticks = math.floor(wait * 60)}
+    elseif wait == nil then cond = {type = "time", compare_type = "or", ticks = 300}
+    else return false, 'set_train_schedule: stop ' .. i .. ' wait must be "full", "empty" or seconds' end
+    records[#records + 1] = {station = s.station, wait_conditions = {cond}}
+  end
+  train.schedule = {current = 1, records = records}
+  train.manual_mode = false
+  local fueled = false
+  pcall(function()
+    for _, c in ipairs(train.carriages) do
+      if c.type == "locomotive" and c.burner and (c.burner.currently_burning ~= nil or c.burner.inventory.get_item_count() > 0) then
+        fueled = true
+      end
+    end
+  end)
+  return true, string.format("train %d now runs %d stop(s) in automatic mode%s", id, #records,
+    fueled and "" or " — WARNING: no locomotive has fuel, it will not move until fuelled")
+end
+
+-- -------------------------------------------------------------------------
 -- cancel_research(tech) — remove a QUEUED technology that has not started.
 -- The one in progress is refused: dropping it would discard its progress.
 -- -------------------------------------------------------------------------
@@ -951,6 +1002,7 @@ AISkills.REGISTRY = {
   return_home      = skill_return_home,
   research         = skill_research,
   cancel_research  = skill_cancel_research,
+  set_train_schedule = skill_set_train_schedule,
   ["goto"]         = skill_goto,
 }
 

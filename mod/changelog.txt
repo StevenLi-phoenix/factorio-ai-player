@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.14.0
+Date: 2026-10-30
+  Features:
+    - Query trace_belt: follow a belt line through a tile (legs, lane fill,
+      start/end, feeders/takers, unpaired undergrounds). New scripts/belts.lua.
+    - Query list_trains and skill set_train_schedule.
+---------------------------------------------------------------------------------------------------
 Version: 0.13.0
 Date: 2026-10-30
   Features:

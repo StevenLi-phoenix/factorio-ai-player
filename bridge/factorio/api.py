@@ -47,6 +47,7 @@ SKILLS: dict[str, list[str]] = {
     "order_platform": ["name"],
     "equip": [],
     "cancel_research": ["tech"],
+    "set_train_schedule": ["train_id", "stops"],
     "drive_to": ["position"],
     "exit_vehicle": [],
     "supply_turrets": ["ammo"],

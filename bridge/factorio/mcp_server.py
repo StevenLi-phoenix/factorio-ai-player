@@ -545,6 +545,31 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def trace_belt(x: float, y: float) -> str:
+    """Follow the belt line through the tile at (x, y) both ways: legs (runs of
+    one direction, with lane fill %), how it starts and ends (dead end, what it
+    faces, unpaired underground), what feeds it and takes from it, lane capacity.
+    Use it when items stop flowing; complements belt_line."""
+    return _query("trace_belt", x=x, y=y)
+
+
+@mcp.tool()
+def list_trains() -> str:
+    """Trains on the AI's surface (state, locomotives/wagons, position, station,
+    schedule, cargo) and the names of the force's train stops — the only valid
+    targets for set_train_schedule."""
+    return _query("list_trains")
+
+
+@mcp.tool()
+def set_train_schedule(train_id: int, stops: list[dict]) -> str:
+    """Give a train a schedule: stops = [{"station": "Name", "wait": "full" |
+    "empty" | seconds}] (default wait 5 s). Station names must be existing train
+    stops. Sets the train to automatic and warns if no locomotive has fuel."""
+    return _skill("set_train_schedule", train_id=train_id, stops=stops)
+
+
+@mcp.tool()
 def list_technologies(status: str = "available", search: str | None = None, limit: int = 60) -> str:
     """The tech tree with the exact names `research` takes. status: researched,
     in-progress, queued, available, trigger (completes by doing something, the
