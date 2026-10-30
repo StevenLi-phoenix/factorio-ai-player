@@ -242,7 +242,7 @@ It uses the same `bridge/.env` credentials as the bridge — no extra configurat
 
 **Tools exposed:**
 - **Read state:** `get_factory_state`, `get_research`, `get_players`, `entities_near`, `list_surfaces`, `get_tick`, …
-- **Queries** (run inside the mod, reusing its perception code): `get_recipe` (ingredients/products/craft time), `get_resource_patch` (patch bbox + total), `can_place` / `nearest_buildable` (placement planning), `inspect_entity` (perception-grade detail of any entity), `get_enemies` (threat summary), `analyze_factory` (stuck machines grouped by problem, with missing ingredients), `map_warnings` (whole-surface punch list of problem machines), `get_character_state` (walking/mining state + the hand-crafting queue)
+- **Queries** (run inside the mod, reusing its perception code): `get_recipe` (ingredients/products/craft time), `get_resource_patch` (patch bbox + total), `can_place` / `nearest_buildable` (placement planning), `inspect_entity` (perception-grade detail of any entity), `get_enemies` (threat summary), `analyze_factory` (stuck machines grouped by problem, with missing ingredients), `map_warnings` (whole-surface punch list of problem machines), `production_stats` (item/fluid production & consumption rates over a window), `get_character_state` (walking/mining state + the hand-crafting queue)
 - **Skills:** `gather`, `build_miner`, `build_smelter`, `build_ghosts`, `deconstruct`, `loot_chests`, `deposit_to_chest`, `research`, `return_home`, `fuel_all`
 - **Primitives** (surgical one-off actions, same handlers the bridge LLM uses): `place_entity`, `mine_entity`, `craft_item`, `set_recipe`, `insert_items`, `take_items`, `say`
 - **Lifecycle & modes:** `spawn_ai_player`, `remove_ai_player`, `set_coop`, `set_autonomy`, `server_status`

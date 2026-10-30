@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.4
+Date: 2026-10-30
+  Features:
+    - Query production_stats: per-minute item/fluid production and consumption
+      over a chosen window (5s .. 1000h) plus all-time totals, like the
+      production statistics window. Also exposed as an MCP tool.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.3
 Date: 2026-10-30
   Features:

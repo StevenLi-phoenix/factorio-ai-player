@@ -431,6 +431,17 @@ def map_warnings(charted_only: bool = False) -> str:
 
 
 @mcp.tool()
+def production_stats(window: str = "1m", names: list[str] | None = None,
+                     kind: str = "both", top: int = 20) -> str:
+    """Item/fluid production and consumption of the force on the AI's surface,
+    like the in-game production statistics window. Rates are per minute over
+    window (5s, 1m, 10m, 1h, 10h, 50h, 250h, 1000h); also all-time totals.
+    names restricts to specific items/fluids; kind is item, fluid or both;
+    rows are sorted by the larger of produced/consumed rate, capped at top."""
+    return _query("production_stats", window=window, names=names, kind=kind, top=top)
+
+
+@mcp.tool()
 def get_character_state() -> str:
     """Live embodiment state of the AI character: position, health, walking and
     mining flags, home anchor distance, and the HAND-CRAFTING QUEUE with
