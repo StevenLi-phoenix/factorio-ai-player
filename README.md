@@ -214,6 +214,8 @@ Skills are the primary interface between the LLM and the game. The LLM picks a s
 | `launch_rocket` | _(optional `position`)_ | Walks to the nearest rocket silo and launches its finished rocket; fails with the parts count until it is built. |
 | `equip` | _(optional `gun`, `ammo`, `armor`)_ | Moves those items from the inventory into the gun / ammo / armor slots (ammo tops up one stack). Creates nothing. |
 | `supply_turrets` | `ammo` _(optional `per_turret`, `radius`)_ | Loads ammo from the inventory into nearby gun turrets below `per_turret` rounds; walks to the nearest one out of reach. |
+| `drive_to` | `position` _(optional `arrive_within`)_ | Walks to the nearest free car (≤30 tiles), fuels it from the inventory and drives it to the point; asynchronous, fails honestly when stuck or out of fuel. |
+| `exit_vehicle` | _(none)_ | Gets out of the car. |
 | `order_platform` | `name` | Space Age: orders a space platform above the current planet. |
 | `return_home` | _(none)_ | Starts walking back to the AI's base anchor point (asynchronous; takes game time). |
 | `goto` | `position` | Starts walking to `{"x": N, "y": N}`. Straight-line walk over the following ticks; the outcome (`arrived`/`blocked`/`timeout`) is reported in the next action results. |

@@ -6,6 +6,7 @@
 require("scripts.character")
 require("scripts.registry")
 require("scripts.movement")
+require("scripts.driving")
 require("scripts.vision")
 require("scripts.perception")
 require("scripts.primitives")
@@ -42,6 +43,9 @@ remote.add_interface("ai_player", {
     return { fog_of_war = AIVision.enabled() }
   end,
   -- Walk in progress (nil when idle) and the outcome of the last finished walk.
+  drive_status = function()
+    return { driving = AIDriving.status(), last = storage.ai_player and storage.ai_player.drive_result }
+  end,
   walk_status = function()
     return { walking = AIMovement.status(), last = storage.ai_player and storage.ai_player.walk_result }
   end,
@@ -482,6 +486,7 @@ script.on_event(defines.events.on_tick, function(event)
   -- Keep an in-progress walk going. Before the autonomy gate below: an external
   -- harness driving skills with autonomy off still needs its walks to advance.
   AIMovement.step()
+  AIDriving.step()
 
   -- Exploration bookkeeping for the optional fog of war (cheap; recorded even
   -- while the setting is off so it can be enabled mid-game).

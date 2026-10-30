@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.12.0
+Date: 2026-10-30
+  Features:
+    - Skill drive_to: walk to the nearest free car, fuel it from the
+      inventory, drive it to a point (continuous steering, braking, reverse
+      attempts, honest failure when stuck or out of fuel). Asynchronous like
+      walking. Skill exit_vehicle. New module scripts/driving.lua.
+---------------------------------------------------------------------------------------------------
 Version: 0.11.0
 Date: 2026-10-30
   Features:

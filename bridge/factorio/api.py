@@ -46,6 +46,8 @@ SKILLS: dict[str, list[str]] = {
     "launch_rocket": [],
     "order_platform": ["name"],
     "equip": [],
+    "drive_to": ["position"],
+    "exit_vehicle": [],
     "supply_turrets": ["ammo"],
     "deconstruct":   [],
     "gather":        ["item"],

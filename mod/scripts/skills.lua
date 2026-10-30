@@ -706,6 +706,23 @@ local function skill_launch_rocket(character, p)
 end
 
 -- -------------------------------------------------------------------------
+-- drive_to(position, arrive_within?) — walk to the nearest free car of the
+-- force within 30 tiles, fuel it from the inventory, and drive it to the point.
+-- Starts the job; the outcome ("parked"/"failed") arrives in the next turn's
+-- action results. exit_vehicle gets the character out again.
+-- -------------------------------------------------------------------------
+local function skill_drive_to(character, p)
+  if character.vehicle and AIDriving.status() then
+    return false, "drive_to: already driving — wait for the result or call exit_vehicle"
+  end
+  return AIDriving.start(character, p.position, p.arrive_within)
+end
+
+local function skill_exit_vehicle(character, _)
+  return AIDriving.exit(character)
+end
+
+-- -------------------------------------------------------------------------
 -- equip(gun?, ammo?, armor?) — put items from the main inventory into the
 -- character's gun / ammo / armor slots. A new gun goes to an empty slot (else
 -- swaps the selected one); ammo tops up the slot paired with the gun, up to a
@@ -865,6 +882,8 @@ AISkills.REGISTRY = {
   launch_rocket    = skill_launch_rocket,
   order_platform   = skill_order_platform,
   equip            = skill_equip,
+  drive_to         = skill_drive_to,
+  exit_vehicle     = skill_exit_vehicle,
   supply_turrets   = skill_supply_turrets,
   deconstruct      = skill_deconstruct,
   gather           = skill_gather,

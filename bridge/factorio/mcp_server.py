@@ -545,6 +545,21 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def drive_to(x: float, y: float, arrive_within: float = 3) -> str:
+    """Walk to the nearest free car of the AI's force (within 30 tiles), fuel it
+    from the AI's inventory, and drive it to (x, y). Asynchronous: the result
+    (parked/failed) shows up in the next action results. Cars do not path around
+    lakes or forests; on "stuck" use goto, which pathfinds."""
+    return _skill("drive_to", position={"x": x, "y": y}, arrive_within=arrive_within)
+
+
+@mcp.tool()
+def exit_vehicle() -> str:
+    """Get the AI out of the vehicle it is driving."""
+    return _skill("exit_vehicle")
+
+
+@mcp.tool()
 def battle_report() -> str:
     """Defence picture in one call: own entities below max health, turrets with
     no ammo, and enemy clusters (size, top names, centre) with the distance to
