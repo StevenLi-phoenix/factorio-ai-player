@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.3
+Date: 2026-10-30
+  Features:
+    - Query map_warnings: whole-surface punch list of machines with a problem
+      status, grouped by problem and sorted nearest-first; idle inserters are
+      listed separately; optional charted_only. Also exposed as an MCP tool.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.2
 Date: 2026-10-30
   Features:

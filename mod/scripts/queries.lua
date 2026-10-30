@@ -417,6 +417,83 @@ REGISTRY.analyze_factory = function(ctx, p)
 end
 
 -- -------------------------------------------------------------------------
+-- map_warnings — the map screen's warning icons as one punch list: every
+-- machine of the force with a problem status (same classification as
+-- analyze_factory), grouped by problem, nearest-first, with positions.
+-- analyze_factory looks at a radius; this sweeps the whole surface. Idle but
+-- healthy inserters (waiting_for_source_items) are reported last, separately.
+-- charted_only=true restricts it to chunks the force has charted, i.e. what a
+-- player would see on the map; the default reports everything the force owns.
+-- -------------------------------------------------------------------------
+local MW_MAX_PER_GROUP = 60
+local MW_MAX_IDLE = 20
+
+REGISTRY.map_warnings = function(ctx, p)
+  local surface, force = ctx.surface, ctx.force
+  local origin = ctx.character and ctx.character.position or {x = 0, y = 0}
+  local charted_only = (p.charted_only == true or p.charted_only == "true")
+
+  local status_names = {}
+  for name, value in pairs(defines.entity_status) do status_names[value] = name end
+
+  local groups, order, idle = {}, {}, nil
+  local checked = 0
+  local function add_to(g, e)
+    g.count = g.count + 1
+    g.by_name[e.name] = (g.by_name[e.name] or 0) + 1
+    g.entities[#g.entities + 1] = {
+      name = e.name, x = round1(e.position.x), y = round1(e.position.y),
+      _d = (e.position.x - origin.x) ^ 2 + (e.position.y - origin.y) ^ 2,
+    }
+  end
+  for _, e in ipairs(surface.find_entities_filtered{force = force}) do
+    if e.valid and e.type ~= "character"
+       and (not charted_only or force.is_chunk_charted(surface,
+            {x = math.floor(e.position.x / 32), y = math.floor(e.position.y / 32)})) then
+      local ok, st = pcall(function() return e.status end)
+      if ok and st ~= nil then
+        checked = checked + 1
+        local sname = status_names[st] or tostring(st)
+        if AF_PROBLEMS[sname] and not AF_WORKING[sname] then
+          local g = groups[sname]
+          if not g then
+            g = {problem = sname, count = 0, by_name = {}, entities = {}}
+            groups[sname] = g
+            order[#order + 1] = g
+          end
+          add_to(g, e)
+        elseif sname == "waiting_for_source_items" then
+          idle = idle or {problem = sname, count = 0, by_name = {}, entities = {}, idle = true}
+          add_to(idle, e)
+        end
+      end
+    end
+  end
+
+  local total = 0
+  for _, g in ipairs(order) do total = total + g.count end
+  local function finish(g, cap)
+    table.sort(g.entities, function(a, b) return a._d < b._d end)
+    if #g.entities > cap then
+      g.more = #g.entities - cap
+      for i = #g.entities, cap + 1, -1 do g.entities[i] = nil end
+    end
+    for _, ent in ipairs(g.entities) do ent._d = nil end
+  end
+  for _, g in ipairs(order) do finish(g, MW_MAX_PER_GROUP) end
+  table.sort(order, function(a, b)
+    if a.count ~= b.count then return a.count > b.count end
+    return a.problem < b.problem
+  end)
+  if idle then
+    finish(idle, MW_MAX_IDLE)
+    order[#order + 1] = idle  -- always last, after the warning groups
+  end
+  return {surface = surface.name, entities_checked = checked,
+          with_problems = total, groups = order}
+end
+
+-- -------------------------------------------------------------------------
 -- Dispatch
 -- -------------------------------------------------------------------------
 

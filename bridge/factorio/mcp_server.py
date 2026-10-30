@@ -421,6 +421,16 @@ def analyze_factory(radius: int = 40, x: float | None = None, y: float | None = 
 
 
 @mcp.tool()
+def map_warnings(charted_only: bool = False) -> str:
+    """The map screen's warning icons as one punch list: every machine of the
+    force with a problem status across the whole surface, grouped by problem
+    (most frequent first), nearest-first with positions. Idle-but-healthy
+    inserters are listed last, separately. charted_only=true limits it to
+    chunks the force has charted."""
+    return _query("map_warnings", charted_only=charted_only)
+
+
+@mcp.tool()
 def get_character_state() -> str:
     """Live embodiment state of the AI character: position, health, walking and
     mining flags, home anchor distance, and the HAND-CRAFTING QUEUE with
