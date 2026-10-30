@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.17.0
+Date: 2026-10-30
+  Features:
+    - Query find_buildable_area: nearest clear rectangle of explored ground
+      (searched in rings), trees counted.
+    - Query describe_prototype: item, entity (size, energy, speeds, inserter
+      and drill offsets, fluid connections), recipe and fluid facts by name.
+      New scripts/spatial.lua.
+---------------------------------------------------------------------------------------------------
 Version: 0.16.0
 Date: 2026-10-30
   Features:

@@ -823,6 +823,19 @@ REGISTRY.platforms = function(ctx, _)
   return {platforms = out, character_on = (here and here.valid) and here.name or ctx.surface.name}
 end
 
+-- find_buildable_area{width, height, near={x,y}, max_distance?} and
+-- describe_prototype{names=[...]} — scripts/spatial.lua. Errors come back as
+-- {error = "..."} with the source location stripped.
+local function spatial(fn_name)
+  return function(ctx, p)
+    local ok, res = pcall(AISpatial[fn_name], ctx, p or {})
+    if ok then return res end
+    return {error = (tostring(res):gsub("^.-:%d+:%s*", ""))}
+  end
+end
+REGISTRY.find_buildable_area = spatial("find_buildable_area")
+REGISTRY.describe_prototype = spatial("describe_prototype")
+
 -- route_belt / route_pipe — weighted A* between two endpoints on the real map
 -- (scripts/route/): returns build steps for build_plan (item, x, y, direction,
 -- underground_type), the bill vs. what the character carries, trees/rocks to

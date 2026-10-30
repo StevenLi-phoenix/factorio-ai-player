@@ -545,6 +545,26 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def find_buildable_area(width: int, height: int, near_x: float, near_y: float, max_distance: int = 50) -> str:
+    """Nearest clear width x height rectangle of explored ground to (near_x,
+    near_y): no water and nothing standing in it (trees are allowed and counted
+    in trees_in_area, ore tiles count as occupied). Searches outward in rings up
+    to max_distance (max 100). Use it to site a build before build_plan."""
+    return _query("find_buildable_area", width=width, height=height, near={"x": near_x, "y": near_y},
+                  max_distance=max_distance)
+
+
+@mcp.tool()
+def describe_prototype(names: list[str]) -> str:
+    """Facts about up to 10 names at once: for each, the item (stack size, fuel
+    value), the entity it places (tile size, energy source, power kW, crafting
+    speed, mining area, inserter pickup/drop offsets, drill output offset, fluid
+    connections as pipe offsets), the recipe that makes it and the fluid.
+    Geometry offsets are for the entity facing north."""
+    return _query("describe_prototype", names=names)
+
+
+@mcp.tool()
 def route_belt(start: dict, end: dict, belt: str | None = None, underground: str | None = None,
                allow_underground: bool | None = None, clear_obstacles: bool = False,
                margin: int = 12, through_inserters: bool = False) -> str:
