@@ -831,6 +831,21 @@ local function skill_exit_vehicle(character, _)
 end
 
 -- -------------------------------------------------------------------------
+-- Space Age platform tooling (scripts/space.lua): platform_build,
+-- platform_deconstruct, platform_configure, platform_requests,
+-- landing_pad_requests, chest_requests, platform_schedule, drop_to_planet.
+-- Each returns its result table as JSON in the detail; bad input comes back
+-- as a failed skill with the reason.
+-- -------------------------------------------------------------------------
+local function space_skill(fn_name)
+  return function(character, p)
+    local ok, res = pcall(AISpace[fn_name], character, p)
+    if not ok then return false, fn_name .. ": " .. (tostring(res):gsub("^.-:%d+:%s*", "")) end
+    return true, helpers.table_to_json(res)
+  end
+end
+
+-- -------------------------------------------------------------------------
 -- equip(gun?, ammo?, armor?) — put items from the main inventory into the
 -- character's gun / ammo / armor slots. A new gun goes to an empty slot (else
 -- swaps the selected one); ammo tops up the slot paired with the gun, up to a
@@ -990,6 +1005,14 @@ AISkills.REGISTRY = {
   launch_rocket    = skill_launch_rocket,
   order_platform   = skill_order_platform,
   equip            = skill_equip,
+  platform_build         = space_skill("platform_build"),
+  platform_deconstruct   = space_skill("platform_deconstruct"),
+  platform_configure     = space_skill("platform_configure"),
+  platform_requests      = space_skill("platform_requests"),
+  landing_pad_requests   = space_skill("landing_pad_requests"),
+  chest_requests         = space_skill("chest_requests"),
+  platform_schedule      = space_skill("platform_schedule"),
+  drop_to_planet         = space_skill("drop_to_planet"),
   drive_to         = skill_drive_to,
   exit_vehicle     = skill_exit_vehicle,
   supply_turrets   = skill_supply_turrets,

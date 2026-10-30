@@ -545,6 +545,72 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def platform_build(platform: str, steps: list[dict]) -> str:
+    """Space Age: place ghosts on a platform (the hub builds them from its own
+    inventory). steps = [{name, x, y, direction?, recipe?}]; name is an item or
+    entity, space-platform-foundation places a floor tile ghost. Floor must grow
+    outward from existing floor, in order. Up to 400 steps; rejects are listed."""
+    return _skill("platform_build", platform=platform, steps=steps)
+
+
+@mcp.tool()
+def platform_deconstruct(platform: str, x1: float, y1: float, x2: float, y2: float,
+                         names: list[str] | None = None) -> str:
+    """Space Age: mark buildings of the force in an area of a platform for
+    deconstruction (the hub takes them back); ghosts in the area are removed. The
+    hub itself is never touched. names optionally filters."""
+    return _skill("platform_deconstruct", platform=platform, x1=x1, y1=y1, x2=x2, y2=y2, names=names)
+
+
+@mcp.tool()
+def platform_configure(platform: str, x: float, y: float, recipe: str | None = None,
+                       filters: list[str] | None = None, direction: int | None = None) -> str:
+    """Space Age: set the recipe, filters (inserters; asteroid chunk names for
+    asteroid collectors) and/or direction of the building or ghost at (x, y) on a
+    platform, like clicking it in remote view."""
+    return _skill("platform_configure", platform=platform, x=x, y=y, recipe=recipe, filters=filters, direction=direction)
+
+
+@mcp.tool()
+def platform_requests(platform: str, items: dict, import_from: str | None = None) -> str:
+    """Space Age: set what the platform hub requests (rockets bring it up),
+    replacing the first manual request section. items = {name: count}; {} clears.
+    import_from is the planet to import from (default the one it is parked at)."""
+    return _skill("platform_requests", platform=platform, items=items, import_from=import_from)
+
+
+@mcp.tool()
+def landing_pad_requests(x: float, y: float, items: dict) -> str:
+    """Space Age: set what a cargo landing pad at (x, y) asks for; platforms
+    parked above the planet holding those items drop them down in cargo pods.
+    items = {name: count}; {} clears."""
+    return _skill("landing_pad_requests", x=x, y=y, items=items)
+
+
+@mcp.tool()
+def chest_requests(x: float, y: float, items: dict) -> str:
+    """Set what the requester or buffer chest at (x, y) asks the logistic network
+    for. items = {name: count}; {} clears."""
+    return _skill("chest_requests", x=x, y=y, items=items)
+
+
+@mcp.tool()
+def platform_schedule(platform: str, stops: list[dict] | None = None, paused: bool | None = None) -> str:
+    """Space Age: set a platform's schedule, stops = [{planet, wait}] with wait a
+    number of seconds or "requests" (all hub requests satisfied), and/or pause or
+    resume its thrust with paused."""
+    return _skill("platform_schedule", platform=platform, stops=stops, paused=paused)
+
+
+@mcp.tool()
+def drop_to_planet(x: float | None = None, y: float | None = None) -> str:
+    """Space Age: from a platform parked at a planet, ride a cargo pod down to that
+    planet's surface (near x, y when given)."""
+    position = {"x": x, "y": y} if x is not None and y is not None else None
+    return _skill("drop_to_planet", position=position)
+
+
+@mcp.tool()
 def map_overview(center_x: float | None = None, center_y: float | None = None, radius: int = 320) -> str:
     """What the map screen would show, at chunk resolution, over known ground
     (radius 32-640 around the AI or a center): resource patches per ore, rocks,
