@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.8.1
+Date: 2026-10-30
+  Bugfixes:
+    - Factorio 2.1 changed mine-entity research triggers from `entity` to an
+      `entities` list (all ten of them, e.g. oil-processing, lithium-processing),
+      so trigger evaluation looked up a nil prototype name. AITriggers now
+      accepts both shapes; "Mine a X or Y" in the research hint.
+---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 2026-10-30
   Features:

@@ -64,6 +64,18 @@ local function proto_name(v)
   return v
 end
 
+-- mine-entity triggers name one entity in 2.0 (`entity`) and a list in 2.1
+-- (`entities`); return the names either way.
+local function trigger_entities(trigger)
+  local out = {}
+  if trigger.entities then
+    for _, e in pairs(trigger.entities) do out[#out + 1] = proto_name(e) end
+  elseif trigger.entity then
+    out[1] = proto_name(trigger.entity)
+  end
+  return out
+end
+
 -- Sum of everything mining `entity_name` yields that the force has produced.
 -- Covers ore (item products) and crude-oil (fluid product) alike.
 local function mining_yield(force, surface, entity_name)
@@ -151,10 +163,16 @@ local function satisfied(force, surface, trigger)
 
   elseif t == "mine-entity" then
     -- The trigger asks for one mining action; any yield proves it happened.
-    return mining_yield(force, surface, proto_name(trigger.entity)) > 0
+    for _, name in ipairs(trigger_entities(trigger)) do
+      if mining_yield(force, surface, name) > 0 then return true end
+    end
+    return false
 
   elseif t == "build-entity" then
-    return force_has_entity(force, proto_name(trigger.entity))
+    for _, name in ipairs(trigger_entities(trigger)) do
+      if force_has_entity(force, name) then return true end
+    end
+    return false
   end
 
   -- capture-spawner / create-space-platform / anything new: not our business.
@@ -217,7 +235,7 @@ function AITriggers.describe(trigger)
   elseif t == "craft-fluid" then
     return string.format("Produce %d %s.", trigger.amount or 1, tostring(proto_name(trigger.fluid)))
   elseif t == "mine-entity" then
-    return string.format("Mine a %s.", tostring(proto_name(trigger.entity)))
+    return string.format("Mine a %s.", table.concat(trigger_entities(trigger), " or "))
   elseif t == "build-entity" then
     return string.format("Build a %s.", tostring(proto_name(trigger.entity)))
   elseif t == "capture-spawner" then
