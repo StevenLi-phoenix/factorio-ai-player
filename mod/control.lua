@@ -521,6 +521,8 @@ end)
 -- Rocket launches — the end of a run. Recorded in storage.ai_player.launches
 -- (read back by the silo_status query) and announced in chat.
 -- -------------------------------------------------------------------------
+script.on_event(defines.events.on_script_path_request_finished, AIMovement.on_path)
+
 script.on_event(defines.events.on_rocket_launched, function(event)
   if not storage.ai_player then return end
   local silo = event.rocket_silo

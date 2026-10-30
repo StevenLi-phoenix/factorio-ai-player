@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.11.0
+Date: 2026-10-30
+  Features:
+    - Walking uses the engine pathfinder (surface.request_path, answered via
+      on_script_path_request_finished): the character follows the waypoints,
+      so trees, water and buildings are walked around and the walk budget is
+      extended to the route length. If no path is returned it falls back to
+      the old straight line and ends "blocked" when something is in the way.
+  Bugfixes:
+    - The pathfinder request needs entity_to_ignore = the character, or its own
+      collision box blocks the start and every request returns no path.
+---------------------------------------------------------------------------------------------------
 Version: 0.10.0
 Date: 2026-10-30
   Features:

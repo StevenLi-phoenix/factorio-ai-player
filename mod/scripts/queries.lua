@@ -994,10 +994,10 @@ end
 
 -- -------------------------------------------------------------------------
 -- map_view — the area around {x,y} (default: the character) as a character
--- grid a model can read, one glyph per tile, with a legend. Walking is a
--- straight line with no pathfinding, so `to = {x, y}` also traces that line
--- with the engine's own collision test for a character and names the first
--- thing in the way (water, a tree, a building) before the model commits to goto.
+-- grid a model can read, one glyph per tile, with a legend. `to = {x, y}` also
+-- traces the DIRECT line with the engine's own collision test for a character
+-- and names the first thing in the way (water, a tree, a building). goto routes
+-- around those through the pathfinder; the trace shows what detour to expect.
 -- -------------------------------------------------------------------------
 local RES_GLYPH = {["iron-ore"] = "f", ["copper-ore"] = "c", coal = "k", stone = "s", ["uranium-ore"] = "u", ["crude-oil"] = "O"}
 local TYPE_GLYPH = {
@@ -1094,7 +1094,7 @@ REGISTRY.map_view = function(ctx, p)
     end
     put(math.floor(tx), math.floor(ty), "X")
     if not path.clear then
-      path.hint = "walk_to goes straight toward the target and stops when blocked; goto a point beside the obstacle first, then on"
+      path.hint = "the direct line is blocked; goto finds a route around it with the pathfinder (a detour), or falls back to this line when the target is unreachable"
     end
   end
 

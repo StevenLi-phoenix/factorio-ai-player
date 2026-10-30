@@ -458,9 +458,10 @@ def map_view(x: float | None = None, y: float | None = None, radius: int = 20,
     """Character-grid map of the area around (x, y) (default: the AI character),
     one glyph per tile, radius 4-40: water ~, trees T, rocks R, cliffs C, ore
     f/c/k/s/u/O, belts as arrows, buildings by letter, ghosts g, the character @,
-    unexplored ? (fog). Walking is a straight line with no pathfinding, so give
-    to_x/to_y to trace that line (*) and learn what blocks it first (water, a
-    tree, a building) before calling goto. The legend is in the result."""
+    unexplored ? (fog). Give to_x/to_y to trace the DIRECT line (*) and learn
+    what lies on it (water, a tree, a building); goto routes around such things
+    by pathfinding, so this shows how much of a detour to expect, and whether the
+    target is even on the same side of a lake. The legend is in the result."""
     r = json.loads(_query("map_view", x=x, y=y, radius=radius, to_x=to_x, to_y=to_y))
     if "text" not in r:
         return json.dumps(r, indent=2)

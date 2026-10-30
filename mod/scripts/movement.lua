@@ -3,8 +3,12 @@
 -- Skills run synchronously inside one tick, but walking takes many: the
 -- character has to hold a walking_state every tick until it arrives. walk_to()
 -- records the destination in storage.ai_player.walk and step() (called from
--- on_tick) steers toward it. There is deliberately no pathfinding: a straight
--- line that gets blocked fails and the caller decides what to do next.
+-- on_tick) steers toward it. The route comes from the engine pathfinder
+-- (surface.request_path, answered asynchronously through
+-- on_script_path_request_finished): the character follows the waypoints, so
+-- trees, water and buildings are walked around. If no path is returned (or the
+-- request cannot be made) it falls back to a straight line, which fails as
+-- "blocked" when something is in the way and lets the caller decide.
 --
 -- Outcome of the last walk lives in storage.ai_player.walk_result:
 --   {status = "arrived"|"timeout"|"blocked"|"cancelled"|"lost", tick, target, pos}
@@ -19,6 +23,8 @@ local STUCK_EPSILON = 0.02  -- tiles per tick below which we count as not moving
 local GRACE_TICKS   = 120   -- slack added on top of the estimated travel time
 local MAX_TIMEOUT   = 60 * 60 * 5  -- hard cap: 5 minutes of game time
 local WALK_SPEED    = 0.15  -- tiles per tick of an unboosted character (conservative)
+local PATH_WAIT     = 600   -- ticks to wait for the pathfinder before going straight
+local WAYPOINT_NEAR = 0.8   -- tiles from a waypoint counted as passed
 
 local function debug_print(msg)
   if settings.global["ai-player-debug-chat"] and settings.global["ai-player-debug-chat"].value then
@@ -69,6 +75,53 @@ local function finish(character, status, extra)
   end
 end
 
+local function request_path(character, w)
+  local ok, id = pcall(function()
+    return character.surface.request_path{
+      bounding_box = character.prototype.collision_box,
+      collision_mask = character.prototype.collision_mask,
+      start = character.position, goal = w.target, force = character.force,
+      entity_to_ignore = character,   -- else its own collision box blocks the start
+      radius = REACH, can_open_gates = true,
+      pathfind_flags = {cache = false, prefer_straight_paths = true},
+    }
+  end)
+  if ok and id then
+    w.path_id, w.path_wait_until = id, game.tick + PATH_WAIT
+    log_line("path requested id=" .. tostring(id))
+  else
+    log_line("pathfinder request failed, walking straight: " .. tostring(id))
+  end
+end
+
+-- on_script_path_request_finished: attach the route to the walk that asked.
+function AIMovement.on_path(event)
+  local w = storage.ai_player and storage.ai_player.walk
+  if not (w and w.path_id and w.path_id == event.id) then return end
+  w.path_id = nil
+  if event.path and #event.path > 0 then
+    w.waypoints, w.wp = event.path, 1
+    local len, prev = 0, nil
+    for _, wp in ipairs(event.path) do
+      if prev then len = len + dist(prev, wp.position) end
+      prev = wp.position
+    end
+    local c = AICharacter.get_character()
+    local speed = (c and c.valid and c.character_running_speed or WALK_SPEED)
+    if speed <= 0 then speed = WALK_SPEED end
+    local want = game.tick + math.ceil(len / speed) + GRACE_TICKS
+    w.deadline = math.min(math.max(w.deadline, want), w.started + MAX_TIMEOUT)
+    log_line(string.format("path found: %d waypoints, %.1f tiles", #event.path, len))
+  elseif event.try_again_later and not w.retried then
+    w.retried = true
+    local c = AICharacter.get_character()
+    if c and c.valid then request_path(c, w) end
+  else
+    log_line(string.format("no path to target (try_again_later=%s, id=%s, tick %d), walking straight",
+      tostring(event.try_again_later), tostring(event.id), game.tick))
+  end
+end
+
 -- Start walking toward target ({x=,y=}). Replaces any walk in progress.
 -- Returns (ok, detail) like a skill. ok=true only means the walk started (or
 -- we are already there); the outcome arrives later via walk_result.
@@ -93,6 +146,7 @@ function AIMovement.walk_to(character, target, timeout)
   }
   log_line(string.format("start from (%.1f,%.1f) to (%.1f,%.1f) dist=%.1f budget=%d",
     character.position.x, character.position.y, x, y, d, budget))
+  request_path(character, storage.ai_player.walk)
   return true, string.format("walking to (%.0f, %.0f), %.0f tiles, ~%d ticks — check position next turn",
     x, y, d, math.ceil(d / speed))
 end
@@ -142,8 +196,22 @@ function AIMovement.step()
   end
   w.last_pos = {x = pos.x, y = pos.y}
 
+  local aim = w.target
+  if w.path_id then
+    if game.tick < w.path_wait_until then
+      character.walking_state = {walking = false}
+      w.stuck = 0   -- standing still while the pathfinder works is not "blocked"
+      return
+    end
+    w.path_id = nil
+    log_line("pathfinder gave no answer in time, walking straight")
+  elseif w.waypoints then
+    local wps = w.waypoints
+    while w.wp < #wps and dist(pos, wps[w.wp].position) < WAYPOINT_NEAR do w.wp = w.wp + 1 end
+    aim = wps[w.wp].position
+  end
   character.walking_state = {
-    walking = true, direction = direction_to(w.target.x - pos.x, w.target.y - pos.y),
+    walking = true, direction = direction_to(aim.x - pos.x, aim.y - pos.y),
   }
 end
 

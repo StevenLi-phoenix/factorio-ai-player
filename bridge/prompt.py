@@ -31,7 +31,7 @@ Respond with a JSON ARRAY of skill and/or action objects. ONLY the array — no 
 - {"skill":"fuel_all"}                Top up every nearby burner that's low on fuel (uses your coal).
 - {"skill":"research"[,"tech":"automation"]}   Queue a technology on your force (picks one if you omit tech). REQUIRED before any research can progress — a lab does NOTHING until research is queued.
 - {"skill":"return_home"}             Start walking back to your base anchor (use if you've wandered far). Takes game time; the outcome shows up in your next action results.
-- {"skill":"goto","position":{"x":N,"y":N}}   Start walking to any map coordinate. Takes game time: the walk is straight-line and "arrived"/"blocked"/"timeout" appears in your next action results. Use to reach a distant location (e.g. an oil outpost) before acting.
+- {"skill":"goto","position":{"x":N,"y":N}}   Start walking to any map coordinate. Takes game time: the route is found by the engine pathfinder (trees, water, buildings are walked around; unreachable goals fall back to a straight line) and "arrived"/"blocked"/"timeout" appears in your next action results. Use to reach a distant location (e.g. an oil outpost) before acting.
 
 === PRIMITIVE ACTIONS (fallback only) ===
 move{direction[,distance≤16]}, mine{name|type|position}, place{item,position[,direction]}, set_recipe{recipe,position}, craft{recipe,count}, insert{item,count,position[,inventory]}, take{item,count,position[,inventory]}, pickup{position}, chat{message}, add_note{text}, summary{text}, wait{}.
