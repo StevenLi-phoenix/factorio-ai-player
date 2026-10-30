@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.1
+Date: 2026-10-30
+  Features:
+    - Queries belt_line (tile-by-tile belt row: gaps, obstructions, direction,
+      per-lane contents), inserter_at (resolved pickup/drop positions and what
+      stands on them) and power_report (generation vs capacity, electric-pole
+      networks, unpowered count). Also exposed as MCP tools.
+---------------------------------------------------------------------------------------------------
 Version: 0.6.0
 Date: 2026-10-30
   Features:

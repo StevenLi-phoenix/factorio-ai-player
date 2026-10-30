@@ -442,6 +442,33 @@ def production_stats(window: str = "1m", names: list[str] | None = None,
 
 
 @mcp.tool()
+def belt_line(at: float, start: float, end: float, horizontal: bool = True) -> str:
+    """Walk a belt row tile by tile and report gaps/obstructions, each belt's
+    direction and per-lane contents. horizontal=True scans tile row y=at from tile x=start to
+    x=end; False scans tile column x=at from y=start to y=end (tile
+    coordinates = floor of the position; span capped at 300). A gap
+    or an unexpected direction cuts a line in half (often a pole dropped on the
+    row); one packed lane next to an empty one means a bad side-load."""
+    return _query("belt_line", at=at, **{"from": start}, to=end, horizontal=horizontal)
+
+
+@mcp.tool()
+def inserter_at(x: float, y: float) -> str:
+    """Resolved pickup and drop positions of the inserter at (x, y) and what
+    stands on each. An inserter's direction names the side it PICKS UP from;
+    it drops on the opposite side, so this is the reliable wiring check."""
+    return _query("inserter_at", x=x, y=y)
+
+
+@mcp.tool()
+def power_report() -> str:
+    """Generation vs capacity (MW) and every electric-pole network on the
+    surface with pole count and bounding box. More than one network means
+    something is islanded, the usual cause of a built block sitting at no_power."""
+    return _query("power_report")
+
+
+@mcp.tool()
 def get_character_state() -> str:
     """Live embodiment state of the AI character: position, health, walking and
     mining flags, home anchor distance, and the HAND-CRAFTING QUEUE with

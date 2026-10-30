@@ -596,6 +596,127 @@ REGISTRY.production_stats = function(ctx, p)
 end
 
 -- -------------------------------------------------------------------------
+-- belt_line / inserter_at / power_report — wiring diagnostics distilled from
+-- debugging a real build: the failures that look like "supply problem" but are
+-- a geometry mistake (a gap in a belt row, one lane packed and the other empty,
+-- an inserter wired backwards, an islanded power network).
+-- -------------------------------------------------------------------------
+local BELT_TYPES = {["transport-belt"] = true, ["underground-belt"] = true, splitter = true}
+
+-- Per-lane item counts of a belt-like entity. get_transport_line(1) is the
+-- left lane relative to travel, (2) the right.
+local function belt_lanes(e)
+  local lanes = {}
+  for i = 1, 2 do
+    local contents = {}
+    local ok, line = pcall(function() return e.get_transport_line(i) end)
+    if ok and line then
+      for _, st in ipairs(line.get_contents()) do
+        contents[st.name] = (contents[st.name] or 0) + st.count
+      end
+    end
+    lanes[i] = contents
+  end
+  return {left = lanes[1], right = lanes[2]}
+end
+
+local function non_resource_at(surface, pos)
+  local names = {}
+  for _, z in ipairs(surface.find_entities_filtered{position = pos, radius = 0.35}) do
+    if z.type ~= "resource" then names[#names + 1] = z.name end
+  end
+  return names
+end
+
+-- belt_line — walk a belt row (horizontal: tile row `at`, tiles from..to) or
+-- column (tile column `at`) tile by tile, in tile coordinates (floor of the position) and report gaps/obstructions and each
+-- belt's direction and lane contents. A gap or an unexpected direction are the
+-- two ways a line is silently cut in half (usually a pole dropped on the row);
+-- one packed lane against an empty one is the signature of a bad side-load.
+REGISTRY.belt_line = function(ctx, p)
+  local at, from, to = tonumber(p.at), tonumber(p.from), tonumber(p.to)
+  if not (at and from and to) then return {error = "belt_line: need at, from, to"} end
+  local horizontal = p.horizontal ~= false
+  if math.abs(to - from) > 300 then return {error = "belt_line: span capped at 300 tiles"} end
+  local step = to >= from and 1 or -1
+  local tiles, problems = {}, 0
+  for i = from, to, step do
+    -- Sample the tile centre: entity positions sit on .5 for 1x1 belts.
+    local c, f = math.floor(i) + 0.5, math.floor(at) + 0.5
+    local pos = horizontal and {x = c, y = f} or {x = f, y = c}
+    local e = ctx.surface.find_entities_filtered{position = pos, radius = 0.35}[1]
+    local row = {at = i}
+    if not e then
+      row.gap = true; problems = problems + 1
+    elseif BELT_TYPES[e.type] then
+      row.name, row.direction, row.lanes = e.name, e.direction, belt_lanes(e)
+    else
+      row.blocked_by = e.name; problems = problems + 1
+    end
+    tiles[#tiles + 1] = row
+  end
+  return {axis = horizontal and "x" or "y", fixed = at, obstructions = problems, tiles = tiles}
+end
+
+-- inserter_at — resolved pickup/drop positions of the inserter at {x,y} and what
+-- stands on each. `direction` names the side an inserter PICKS UP from (it drops
+-- opposite), so reading the resolved positions is the reliable wiring check.
+REGISTRY.inserter_at = function(ctx, p)
+  local x, y = tonumber(p.x), tonumber(p.y)
+  if not (x and y) then return {error = "inserter_at: need x, y"} end
+  local e = ctx.surface.find_entities_filtered{
+    position = {x = x, y = y}, radius = 0.35, type = "inserter"}[1]
+  if not e then return {error = "no inserter at {" .. x .. "," .. y .. "}"} end
+  local status
+  for name, value in pairs(defines.entity_status) do
+    if value == e.status then status = name end
+  end
+  return {
+    name = e.name, direction = e.direction, status = status,
+    pickup = {x = e.pickup_position.x, y = e.pickup_position.y,
+              target = non_resource_at(ctx.surface, e.pickup_position)},
+    drop   = {x = e.drop_position.x, y = e.drop_position.y,
+              target = non_resource_at(ctx.surface, e.drop_position)},
+  }
+end
+
+-- power_report — generation vs capacity and every electric-pole network on the
+-- surface. More than one network means something is islanded: the usual reason
+-- for a correctly built block sitting at no_power.
+REGISTRY.power_report = function(ctx, _)
+  local s = ctx.surface
+  local gen, cap = 0, 0
+  for _, e in ipairs(s.find_entities_filtered{type = "generator", force = ctx.force}) do
+    gen = gen + e.energy_generated_last_tick * 60
+    cap = cap + e.prototype.get_max_energy_production(e.quality) * 60
+  end
+  local nets = {}
+  for _, pole in ipairs(s.find_entities_filtered{type = "electric-pole", force = ctx.force}) do
+    local id = pole.electric_network_id or 0
+    local n = nets[id]
+    if not n then
+      n = {id = id, poles = 0, x1 = math.huge, x2 = -math.huge, y1 = math.huge, y2 = -math.huge}
+      nets[id] = n
+    end
+    n.poles = n.poles + 1
+    n.x1, n.x2 = math.min(n.x1, pole.position.x), math.max(n.x2, pole.position.x)
+    n.y1, n.y2 = math.min(n.y1, pole.position.y), math.max(n.y2, pole.position.y)
+  end
+  local list = {}
+  for _, n in pairs(nets) do list[#list + 1] = n end
+  table.sort(list, function(a, b) return a.poles > b.poles end)
+  local unpowered = 0
+  for _, e in ipairs(s.find_entities_filtered{force = ctx.force}) do
+    if e.status == defines.entity_status.no_power
+       or e.status == defines.entity_status.not_plugged_in_electric_network then
+      unpowered = unpowered + 1
+    end
+  end
+  return {generation_mw = round1(gen / 1e6 * 100) / 100, capacity_mw = round1(cap / 1e6 * 100) / 100,
+          networks = list, unpowered_entities = unpowered}
+end
+
+-- -------------------------------------------------------------------------
 -- Dispatch
 -- -------------------------------------------------------------------------
 
