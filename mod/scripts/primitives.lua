@@ -50,9 +50,9 @@ local function get_inventory_by_slot(entity, slot_name)
     -- Factorio 2.0.32: crafter_input/crafter_output do NOT exist.
     -- Use type-specific defines: furnace_source for furnaces, assembling_machine_input for assemblers.
     if entity.type == "furnace" then
-      return entity.get_inventory(defines.inventory.furnace_source)
+      return entity.get_inventory((defines.inventory.furnace_source or defines.inventory.crafter_input))
     else
-      return entity.get_inventory(defines.inventory.assembling_machine_input)
+      return entity.get_inventory((defines.inventory.assembling_machine_input or defines.inventory.crafter_input))
     end
 
   elseif s == "output" then
@@ -71,10 +71,10 @@ local function get_inventory_by_slot(entity, slot_name)
     -- Unknown slot name: guess based on entity type using type-specific defines.
     -- defines.inventory.crafter_input does NOT exist in Factorio 2.0.32.
     if entity.type == "furnace" then
-      local inv = entity.get_inventory(defines.inventory.furnace_source)
+      local inv = entity.get_inventory((defines.inventory.furnace_source or defines.inventory.crafter_input))
       if inv then return inv end
     elseif entity.type == "assembling-machine" then
-      local inv = entity.get_inventory(defines.inventory.assembling_machine_input)
+      local inv = entity.get_inventory((defines.inventory.assembling_machine_input or defines.inventory.crafter_input))
       if inv then return inv end
     end
     return entity.get_inventory(defines.inventory.chest)

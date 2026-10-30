@@ -325,8 +325,8 @@ local function missing_ingredients(e)
   pcall(function()
     local recipe = e.get_recipe()
     if not recipe then return end
-    local inv = e.get_inventory(defines.inventory.assembling_machine_input)
-      or e.get_inventory(defines.inventory.furnace_source)
+    local inv = e.get_inventory((defines.inventory.assembling_machine_input or defines.inventory.crafter_input))
+      or e.get_inventory((defines.inventory.furnace_source or defines.inventory.crafter_input))
     local missing = {}
     for _, ing in ipairs(recipe.ingredients) do
       local have = 0

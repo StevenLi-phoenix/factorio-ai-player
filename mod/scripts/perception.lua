@@ -85,9 +85,9 @@ end
 local function get_input_contents(entity)
   local define
   if entity.type == "furnace" then
-    define = defines.inventory.furnace_source
+    define = (defines.inventory.furnace_source or defines.inventory.crafter_input)
   else
-    define = defines.inventory.assembling_machine_input
+    define = (defines.inventory.assembling_machine_input or defines.inventory.crafter_input)
   end
   local ok, inv = pcall(function() return entity.get_inventory(define) end)
   if ok and inv then return summarize_inventory(inv, 5) end

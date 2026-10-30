@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.5.5
+Date: 2026-10-30
+  Bugfixes:
+    - Factorio 2.1 removed defines.inventory.furnace_source and
+      assembling_machine_input (both nil there, so get_inventory(nil) errored
+      for every furnace/assembler lookup: perception input contents, the
+      insert/take "input" slot, analyze_factory's missing ingredients). Fall
+      back to crafter_input when the old names are absent; 2.0 behaviour is
+      unchanged.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.4
 Date: 2026-10-30
   Features:
