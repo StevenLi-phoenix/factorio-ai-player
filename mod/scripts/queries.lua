@@ -823,6 +823,20 @@ REGISTRY.platforms = function(ctx, _)
   return {platforms = out, character_on = (here and here.valid) and here.name or ctx.surface.name}
 end
 
+-- route_belt / route_pipe — weighted A* between two endpoints on the real map
+-- (scripts/route/): returns build steps for build_plan (item, x, y, direction,
+-- underground_type), the bill vs. what the character carries, trees/rocks to
+-- mine first, and notes on how the route joins existing belts. Read-only.
+local function routed(kind)
+  return function(ctx, p)
+    local ok, res = pcall(AIRoute.route, ctx, p or {}, kind)
+    if ok then return res end
+    return {error = (tostring(res):gsub("^.-:%d+:%s*", ""))}
+  end
+end
+REGISTRY.route_belt = routed("belt")
+REGISTRY.route_pipe = routed("pipe")
+
 -- list_registered_blueprints — the provenance registry (blueprints made in this
 -- run), oldest first, and whether the gate is enforced.
 REGISTRY.list_registered_blueprints = function(_, _)

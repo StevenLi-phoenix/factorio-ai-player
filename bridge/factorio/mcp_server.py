@@ -545,6 +545,34 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def route_belt(start: dict, end: dict, belt: str | None = None, underground: str | None = None,
+               allow_underground: bool | None = None, clear_obstacles: bool = False,
+               margin: int = 12, through_inserters: bool = False) -> str:
+    """Plan a belt between two endpoints on the real map with weighted A* (turns
+    and undergrounds cost extra, existing belts/machines/water are avoided) and
+    return build steps for build_plan. Endpoints are {x, y} plus optional
+    port: tile (default), drop (a drill/inserter output), pickup (an inserter's
+    pickup tile), belt (join an existing belt: from continues it, to feeds or
+    side-loads it) and optional direction. clear_obstacles lets the route go
+    through trees/rocks (listed in mine_first). The result has steps, bill vs
+    inventory, notes on how it joins other belts, and the detour taken to avoid
+    inserter tiles. Read-only: nothing is built."""
+    return _query("route_belt", **{"from": start}, to=end, belt=belt, underground=underground,
+                  allow_underground=allow_underground, clear_obstacles=clear_obstacles,
+                  margin=margin, through_inserters=through_inserters)
+
+
+@mcp.tool()
+def route_pipe(start: dict, end: dict, pipe: str | None = None, underground: str | None = None,
+               allow_underground: bool | None = None, clear_obstacles: bool = False, margin: int = 12) -> str:
+    """Like route_belt for pipes (pipe-to-ground for crossings). Endpoints may use
+    port "fluid": the first unconnected fluid connection of the entity at x,y.
+    Returns build steps for build_plan; nothing is built."""
+    return _query("route_pipe", **{"from": start}, to=end, pipe=pipe, underground=underground,
+                  allow_underground=allow_underground, clear_obstacles=clear_obstacles, margin=margin)
+
+
+@mcp.tool()
 def list_registered_blueprints() -> str:
     """Blueprint provenance registry: layouts made during this run (exported
     from the map or compiled from the agent's own layout), oldest first, and

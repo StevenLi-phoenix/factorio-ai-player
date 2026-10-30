@@ -325,6 +325,7 @@ local function action_place(character, action)
     direction = dir,
     force     = character.force,
     player    = nil,
+    type      = action.underground_type,   -- "input"/"output" for underground belts, else nil
   }
 
   if entity then

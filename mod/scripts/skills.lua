@@ -672,7 +672,8 @@ end
 
 -- -------------------------------------------------------------------------
 -- build_plan(steps) — place many entities from one call. Each step:
---   {item, position={x,y}, direction?="north"..,  recipe?, insert?={coal=5}}
+--   {item, position={x,y}, direction?="north"..,  recipe?, insert?={coal=5},
+--    underground_type?="input"|"output"}
 -- (insert: fuel items go to the fuel slot, anything else to the input slot)
 -- Steps go through the same place / set_recipe / insert primitives as single
 -- actions, so the validation rules are identical. The character builds what is
@@ -727,7 +728,7 @@ local function skill_build_plan(character, p)
           break
         end
         ok, detail = AIActions.run(character, {action = "place", item = step.item,
-          position = pos, direction = step.direction})
+          position = pos, direction = step.direction, underground_type = step.underground_type})
         if ok then
           built = built + 1
           if step.recipe then

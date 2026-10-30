@@ -1,4 +1,14 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.16.0
+Date: 2026-10-30
+  Features:
+    - Queries route_belt and route_pipe: weighted A* between two endpoints on
+      the real map (turns/undergrounds cost extra; buildings, water, cliffs and
+      other belts are avoided; ports tile/drop/pickup/belt/fluid), returning
+      build steps for build_plan, the bill vs inventory, trees/rocks to mine
+      first and notes on how the route joins existing belts. Nothing is built.
+      New scripts/route/{core,scan,api}.lua.
+---------------------------------------------------------------------------------------------------
 Version: 0.15.0
 Date: 2026-10-30
   Features:
