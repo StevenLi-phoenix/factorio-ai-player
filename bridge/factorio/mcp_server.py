@@ -545,6 +545,31 @@ def supply_turrets(ammo: str, per_turret: int = 10, radius: int = 40) -> str:
 
 
 @mcp.tool()
+def queue_jobs(steps: list[dict], on_fail: str = "stop") -> str:
+    """Queue skills to run one after another in the background. steps = [{"skill":
+    "gather","item":"coal","count":20}, {"skill":"goto","position":{"x":0,"y":0}},
+    {"wait": 5}]. While a walk or drive is running it waits; a skill that answers
+    "out of reach — call me again" is re-run after the walk (up to 25 attempts).
+    on_fail "stop" (default) drops the rest after a failed step, "continue" skips
+    it. At most 50 steps; see job_status."""
+    return _skill("queue_jobs", steps=steps, on_fail=on_fail)
+
+
+@mcp.tool()
+def cancel_jobs() -> str:
+    """Clear the background job queue (the current step and everything waiting) and
+    stop a walk in progress."""
+    return _skill("cancel_jobs")
+
+
+@mcp.tool()
+def job_status() -> str:
+    """The background job queue: current step (and how many attempts it has used),
+    waiting steps, the last 20 results and the on_fail mode."""
+    return _query("job_status")
+
+
+@mcp.tool()
 def platform_build(platform: str, steps: list[dict]) -> str:
     """Space Age: place ghosts on a platform (the hub builds them from its own
     inventory). steps = [{name, x, y, direction?, recipe?}]; name is an item or

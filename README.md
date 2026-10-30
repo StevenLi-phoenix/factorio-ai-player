@@ -218,6 +218,7 @@ Skills are the primary interface between the LLM and the game. The LLM picks a s
 | `exit_vehicle` | _(none)_ | Gets out of the car. |
 | `cancel_research` | `tech` | Removes a queued, not-yet-started technology; the one in progress is refused. |
 | `set_train_schedule` | `train_id`, `stops` | Sets a train's schedule (`[{station, wait: full\|empty\|seconds}]`) and automatic mode; warns when no locomotive has fuel. |
+| `queue_jobs` / `cancel_jobs` | `steps` _(optional `on_fail`)_ | Runs a list of skill entries one after another in the background (waits out walks/drives, re-runs skills that ask to be called again); `job_status` shows progress. |
 | `platform_build` / `platform_deconstruct` / `platform_configure` | `platform` + steps / area / `x,y` | Space Age: ghosts on a platform (the hub builds them from its inventory), removal, recipe/filters/direction of one building. |
 | `platform_requests` / `landing_pad_requests` / `chest_requests` | `items` _(+ platform or `x,y`)_ | Set what the hub, a cargo landing pad or a requester chest asks for. |
 | `platform_schedule` / `drop_to_planet` | `platform` + `stops` / _(optional `position`)_ | Platform schedule and pause; ride a cargo pod down to the planet the platform is parked at. |

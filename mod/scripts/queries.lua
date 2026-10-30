@@ -876,6 +876,9 @@ REGISTRY.alerts = function(ctx, _)
   return out
 end
 
+-- job_status — the background job queue (current step, waiting steps, last results).
+REGISTRY.job_status = function(_, _) return AIJobs.status() end
+
 -- route_belt / route_pipe — weighted A* between two endpoints on the real map
 -- (scripts/route/): returns build steps for build_plan (item, x, y, direction,
 -- underground_type), the bill vs. what the character carries, trees/rocks to

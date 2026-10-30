@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.20.0
+Date: 2026-10-30
+  Features:
+    - Background job queue (scripts/jobs.lua): skill queue_jobs runs a list of
+      skill entries one after another from on_tick, waiting out walks and
+      drives and re-running skills that ask to be called again; cancel_jobs;
+      query job_status.
+---------------------------------------------------------------------------------------------------
 Version: 0.19.0
 Date: 2026-10-30
   Features:

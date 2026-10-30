@@ -46,6 +46,8 @@ SKILLS: dict[str, list[str]] = {
     "launch_rocket": [],
     "order_platform": ["name"],
     "equip": [],
+    "queue_jobs": ["steps"],
+    "cancel_jobs": [],
     "platform_build": ["platform", "steps"],
     "platform_deconstruct": ["platform", "x1", "y1", "x2", "y2"],
     "platform_configure": ["platform", "x", "y"],

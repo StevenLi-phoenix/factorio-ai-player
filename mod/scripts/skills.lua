@@ -846,6 +846,19 @@ local function space_skill(fn_name)
 end
 
 -- -------------------------------------------------------------------------
+-- queue_jobs(steps, on_fail?) / cancel_jobs — run a list of skill entries one
+-- after another in the background (scripts/jobs.lua). Waits out walks and
+-- drives and re-runs skills that ask to be called again. job_status (query)
+-- shows progress.
+-- -------------------------------------------------------------------------
+local function skill_queue_jobs(_, p) return AIJobs.enqueue(p.steps, p.on_fail) end
+
+local function skill_cancel_jobs(character, _)
+  local n = AIJobs.cancel(character)
+  return n > 0, n > 0 and ("cancelled " .. n .. " job(s)") or "cancel_jobs: nothing queued"
+end
+
+-- -------------------------------------------------------------------------
 -- equip(gun?, ammo?, armor?) — put items from the main inventory into the
 -- character's gun / ammo / armor slots. A new gun goes to an empty slot (else
 -- swaps the selected one); ammo tops up the slot paired with the gun, up to a
@@ -1005,6 +1018,8 @@ AISkills.REGISTRY = {
   launch_rocket    = skill_launch_rocket,
   order_platform   = skill_order_platform,
   equip            = skill_equip,
+  queue_jobs       = skill_queue_jobs,
+  cancel_jobs      = skill_cancel_jobs,
   platform_build         = space_skill("platform_build"),
   platform_deconstruct   = space_skill("platform_deconstruct"),
   platform_configure     = space_skill("platform_configure"),

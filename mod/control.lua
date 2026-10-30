@@ -12,6 +12,7 @@ require("scripts.bp_registry")
 require("scripts.route.api")
 require("scripts.spatial")
 require("scripts.space")
+require("scripts.jobs")
 require("scripts.vision")
 require("scripts.perception")
 require("scripts.primitives")
@@ -523,6 +524,7 @@ script.on_event(defines.events.on_tick, function(event)
   -- harness driving skills with autonomy off still needs its walks to advance.
   AIMovement.step()
   AIDriving.step()
+  AIJobs.step()
 
   -- Exploration bookkeeping for the optional fog of war (cheap; recorded even
   -- while the setting is off so it can be enabled mid-game).
