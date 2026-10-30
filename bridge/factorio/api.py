@@ -42,6 +42,7 @@ ACTIONS: dict[str, list[str]] = {
 # Skill schema (Tier-1): required params per skill. Mirrors mod skills.lua REGISTRY.
 SKILLS: dict[str, list[str]] = {
     "build_ghosts":  [],
+    "build_plan":    ["steps"],
     "deconstruct":   [],
     "gather":        ["item"],
     "build_miner":   [],

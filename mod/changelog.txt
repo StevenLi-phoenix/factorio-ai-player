@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.0
+Date: 2026-10-30
+  Features:
+    - Skill build_plan: place up to 100 entities (item, position, direction,
+      recipe, starter items) from one call, using the single-action place /
+      set_recipe / insert primitives. Builds what is within build reach, then
+      walks toward the first step that is not; calling it again continues
+      (already-built steps are skipped). Also exposed as an MCP tool.
+---------------------------------------------------------------------------------------------------
 Version: 0.6.1
 Date: 2026-10-30
   Features:

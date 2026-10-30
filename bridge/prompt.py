@@ -19,6 +19,7 @@ Respond with a JSON ARRAY of skill and/or action objects. ONLY the array — no 
 
 === SKILLS (prefer these) ===
 - {"skill":"build_ghosts"}            Build the buildings the human placed as ghosts. HIGHEST PRIORITY whenever ghosts.count > 0 — this is the human directing you.
+- {"skill":"build_plan","steps":[{"item":"transport-belt","position":{"x":1.5,"y":2.5},"direction":"east"},{"item":"assembling-machine-1","position":{"x":5.5,"y":2.5},"recipe":"iron-gear-wheel"}]}   Place many entities in one call (optional per step: direction, recipe, insert:{"coal":5}). Builds what is in reach, then walks toward the next step; call again with the same steps to continue. Needs the items in your inventory.
 - {"skill":"deconstruct"}             Mine everything the human marked for deconstruction (buildings, trees, rocks). SECOND PRIORITY whenever deconstruction.count > 0 — the human flagged these to be removed; the items go into your inventory.
 - {"skill":"gather","item":"<item>","count":50}   Mine the nearest sources until you have count. item e.g. "wood" (chops trees), "iron-ore", "copper-ore", "coal", "stone".
 - {"skill":"build_miner","resource":"iron-ore","output":"chest"}   Place a burner-mining-drill ON the nearest patch of resource, fuel it, and put a collector (output = chest | furnace | belt) at its drop position. Use this to AUTOMATE mining (iron-ore, copper-ore, coal, stone). Needs a burner-mining-drill in inventory.

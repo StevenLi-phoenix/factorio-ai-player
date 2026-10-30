@@ -274,6 +274,17 @@ def deposit_to_chest(radius: int = 32, keep: int = 50) -> str:
 
 
 @mcp.tool()
+def build_plan(steps: list[dict], stop_on_error: bool = False) -> str:
+    """Place many entities in one call. Each step: {item, position:{x,y},
+    direction? ("north"/"east"/...), recipe?, insert? {"coal": 5}}, up to 100.
+    Uses the same place/set_recipe/insert rules as the single actions, builds
+    what is within build reach, then walks toward the first step that is not
+    and returns; call again with the same steps to continue (steps already
+    built are skipped, so repeating is safe). Items must be in the inventory."""
+    return _skill("build_plan", steps=steps, stop_on_error=stop_on_error or None)
+
+
+@mcp.tool()
 def return_home() -> str:
     """Walk the AI character back to its home anchor (set on first spawn)."""
     return _skill("return_home")

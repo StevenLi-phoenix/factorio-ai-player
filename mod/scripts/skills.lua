@@ -562,10 +562,102 @@ local function skill_goto(character, p)
 end
 
 -- -------------------------------------------------------------------------
+-- build_plan(steps) — place many entities from one call. Each step:
+--   {item, position={x,y}, direction?="north"..,  recipe?, insert?={coal=5}}
+-- (insert: fuel items go to the fuel slot, anything else to the input slot)
+-- Steps go through the same place / set_recipe / insert primitives as single
+-- actions, so the validation rules are identical. The character builds what is
+-- within build reach, then walks toward the first step that is not and returns;
+-- call build_plan again with the same steps to continue (steps whose entity
+-- already stands there are skipped, so repeating is safe). A failed step is
+-- recorded and skipped unless stop_on_error is set.
+-- -------------------------------------------------------------------------
+local PLAN_MAX_STEPS = 100
+local PLAN_MAX_FAILURES_LISTED = 5
+
+local function skill_build_plan(character, p)
+  local steps = p.steps
+  if type(steps) ~= "table" or #steps == 0 then
+    return false, "build_plan: 'steps' must be a non-empty list of {item, position[, direction, recipe, insert]}"
+  end
+  if #steps > PLAN_MAX_STEPS then
+    return false, "build_plan: at most " .. PLAN_MAX_STEPS .. " steps per call"
+  end
+  local surface = character.surface
+  local reach = character.build_distance
+  local built, skipped, failed = 0, 0, {}
+  local walking
+
+  for i, step in ipairs(steps) do
+    local pos = type(step) == "table" and step.position
+    if type(step) ~= "table" or type(step.item) ~= "string"
+       or type(pos) ~= "table" or tonumber(pos.x) == nil or tonumber(pos.y) == nil then
+      failed[#failed + 1] = string.format("step %d: needs item and position {x,y}", i)
+      if p.stop_on_error then break end
+    else
+      pos = {x = tonumber(pos.x), y = tonumber(pos.y)}
+      local proto = prototypes.item[step.item]
+      local entity_name = step.entity or (proto and proto.place_result and proto.place_result.name)
+      local ok, detail = true, nil
+      local existing
+      if not proto then
+        ok, detail = false, "unknown item '" .. step.item .. "'"
+      elseif entity_name and prototypes.entity[entity_name] then
+        existing = surface.find_entities_filtered{name = entity_name, position = pos, radius = 0.4}[1]
+      end
+      if not ok then
+        -- fall through to the failure bookkeeping below
+      elseif existing and existing.valid then
+        skipped = skipped + 1
+      else
+        local dx, dy = pos.x - character.position.x, pos.y - character.position.y
+        if dx * dx + dy * dy > reach * reach then
+          local near = surface.find_non_colliding_position("character", pos, 6, 0.5) or pos
+          local _, w = AIMovement.walk_to(character, near)
+          walking = string.format("step %d out of reach — %s", i, w)
+          break
+        end
+        ok, detail = AIActions.run(character, {action = "place", item = step.item,
+          position = pos, direction = step.direction})
+        if ok then
+          built = built + 1
+          if step.recipe then
+            ok, detail = AIActions.run(character, {action = "set_recipe", recipe = step.recipe, position = pos})
+          end
+          if ok and type(step.insert) == "table" then
+            for name, count in pairs(step.insert) do
+              -- Fuel items go to the fuel slot, anything else to the input slot.
+              local ip = prototypes.item[name]
+              local slot = (ip and ip.fuel_value and ip.fuel_value > 0) and "fuel" or "input"
+              ok, detail = AIActions.run(character, {action = "insert", item = name, count = count,
+                position = pos, slot = slot})
+              if not ok then break end
+            end
+          end
+        end
+      end
+      if not ok then
+        failed[#failed + 1] = string.format("step %d (%s): %s", i, step.item, detail or "failed")
+        if p.stop_on_error then break end
+      end
+    end
+  end
+
+  local msg = string.format("build_plan: placed %d, already built %d, %d failed", built, skipped, #failed)
+  for k = 1, math.min(#failed, PLAN_MAX_FAILURES_LISTED) do msg = msg .. "; " .. failed[k] end
+  if #failed > PLAN_MAX_FAILURES_LISTED then
+    msg = msg .. string.format("; +%d more", #failed - PLAN_MAX_FAILURES_LISTED)
+  end
+  if walking then return true, msg .. "; " .. walking .. "; call build_plan again to continue" end
+  return built > 0 or skipped > 0, msg
+end
+
+-- -------------------------------------------------------------------------
 -- Registry + required params (mirrored in the bridge router prompt/validation)
 -- -------------------------------------------------------------------------
 AISkills.REGISTRY = {
   build_ghosts     = skill_build_ghosts,
+  build_plan       = skill_build_plan,
   deconstruct      = skill_deconstruct,
   gather           = skill_gather,
   build_miner      = skill_build_miner,
