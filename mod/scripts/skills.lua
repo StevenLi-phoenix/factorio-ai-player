@@ -80,6 +80,7 @@ local function skill_build_smelter(character, p)
   local have_furnace = inv.get_item_count("stone-furnace")
   if have_furnace == 0 then
     local queued = character.begin_crafting{recipe = "stone-furnace", count = 1}
+    AITriggers.on_crafted("stone-furnace", queued)
     if queued > 0 then
       return false, "build_smelter: out of stone-furnaces — hand-crafting one, retry next turn"
     end
@@ -131,7 +132,8 @@ local function skill_build_miner(character, p)
   local inv = inv_of(character)
 
   if inv.get_item_count("burner-mining-drill") == 0 then
-    character.begin_crafting{recipe = "burner-mining-drill", count = 1}
+    AITriggers.on_crafted("burner-mining-drill",
+      character.begin_crafting{recipe = "burner-mining-drill", count = 1})
     return false, "build_miner: no burner-mining-drill in inventory — crafting one, retry next turn"
   end
 
@@ -530,12 +532,14 @@ local function skill_research(character, p)
     end
   end
 
-  -- Nothing queueable: the next research is likely a TRIGGER tech (Factorio 2.0
-  -- bootstraps via crafting, not queuing). Tell the model to craft the science.
+  -- Nothing queueable: the next research is a TRIGGER tech (Factorio 2.0
+  -- bootstraps via doing, not queuing). Name the exact condition so the model
+  -- can act on it — AITriggers credits it within ~2s of the condition being met.
   for _, t in pairs(force.technologies) do
     if t.enabled and not t.researched and prereqs_met(t) and t.prototype.research_trigger ~= nil then
-      return false, "research: '" .. t.name .. "' is unlocked by CRAFTING, not queuing — hand-craft "
-        .. "automation-science-pack (1 copper-plate + 1 iron-gear-wheel) to trigger it; then more tech becomes queueable"
+      return false, "research: '" .. t.name .. "' is a TRIGGER tech — it completes by doing, not queuing. "
+        .. AITriggers.describe(t.prototype.research_trigger)
+        .. " Do that and it completes automatically; then more tech becomes queueable."
     end
   end
   return false, "research: nothing to queue right now"

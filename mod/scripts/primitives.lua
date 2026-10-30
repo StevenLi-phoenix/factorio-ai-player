@@ -365,6 +365,9 @@ local function action_craft(character, action)
   if not action.recipe then return false, "craft: missing recipe" end
   local count = action.count or 1
   local queued = character.begin_crafting{recipe=action.recipe, count=count}
+  -- Hand-crafting is invisible to production statistics for a player-less
+  -- character; record it so trigger technologies can still be earned.
+  AITriggers.on_crafted(action.recipe, queued)
   if queued > 0 then
     debug_print(string.format("Crafting %d x %s (queued: %d)", count, action.recipe, queued))
     return true, string.format("started hand-crafting %d x %s", queued, action.recipe)

@@ -1,4 +1,20 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.6.0
+Date: 2026-10-30
+  Features:
+    - Trigger technologies for the player-less AI character (scripts/triggers.lua).
+      Factorio 2.0 gates the first techs behind actions (craft N, mine, build)
+      that the engine credits only from player activity; the AI character has no
+      LuaPlayer, so hand-crafting never counted and "craft a lab"
+      (automation-science-pack) could not complete, locking the whole tech tree.
+      AITriggers keeps a hand-craft ledger (called from every begin_crafting
+      site) and re-derives each trigger from real state: production statistics
+      plus the ledger for craft-item, mining products for mine-entity, an
+      existing entity for build-entity. Nothing is marked researched without the
+      work having been done; triggers that cannot be met on Nauvis are left
+      alone. The research skill now names the exact pending condition. Remote
+      interface: trigger_status.
+---------------------------------------------------------------------------------------------------
 Version: 0.5.5
 Date: 2026-10-30
   Bugfixes:

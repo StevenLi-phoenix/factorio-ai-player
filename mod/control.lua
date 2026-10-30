@@ -11,6 +11,7 @@ require("scripts.primitives")
 require("scripts.queries")
 require("scripts.brain")
 require("scripts.skills")
+require("scripts.triggers")
 
 -- -------------------------------------------------------------------------
 -- Remote interface — lets an external MCP/RCON client invoke a skill against
@@ -36,6 +37,22 @@ remote.add_interface("ai_player", {
   -- Walk in progress (nil when idle) and the outcome of the last finished walk.
   walk_status = function()
     return { walking = AIMovement.status(), last = storage.ai_player and storage.ai_player.walk_result }
+  end,
+  -- Trigger-technology diagnostics: the hand-craft ledger plus every pending
+  -- trigger tech and the exact action that completes it.
+  trigger_status = function()
+    local force = game.forces[storage.ai_player.force_name]
+    local pending = {}
+    for name, tech in pairs(force.technologies) do
+      if tech.enabled and not tech.researched and tech.prototype.research_trigger then
+        local met = true
+        for _, p in pairs(tech.prerequisites) do if not p.researched then met = false end end
+        if met then
+          pending[#pending + 1] = { tech = name, need = AITriggers.describe(tech.prototype.research_trigger) }
+        end
+      end
+    end
+    return { hand_crafted = storage.ai_player.hand_crafted or {}, pending = pending }
   end,
   -- Discovery: sorted list of valid skill names.
   list_skills = function()
@@ -232,6 +249,10 @@ local function init_storage()
   s.force_name       = s.force_name or "player"
   s.tick_counter     = s.tick_counter or 0
   s.pending_requests = s.pending_requests or {}
+  -- Hand-craft ledger for trigger technologies (see scripts/triggers.lua):
+  -- begin_crafting by a player-less character never reaches production
+  -- statistics, so the mod tallies it here instead.
+  s.hand_crafted     = s.hand_crafted or {}
   s.chat_log         = s.chat_log or {}
   s.respawn_tick     = s.respawn_tick or nil
   s.map_tag          = s.map_tag or nil
@@ -437,6 +458,13 @@ script.on_event(defines.events.on_tick, function(event)
   if tick % 600 == 0 then
     AIRegistry.reconcile(game.surfaces["nauvis"], game.forces[storage.ai_player.force_name])
   end
+
+  -- Trigger technologies. The engine only credits these from player actions, and
+  -- the AI character has no LuaPlayer, so hand-crafted triggers (notably
+  -- automation-science-pack = "craft 1 lab") would stall the whole tech tree.
+  -- AITriggers re-derives each condition from production statistics / entity
+  -- counts, so a tech completes only when the force genuinely earned it.
+  AITriggers.on_tick(tick, game.forces[storage.ai_player.force_name])
 
   -- Auto-respawn
   if storage.ai_player.respawn_tick and tick >= storage.ai_player.respawn_tick then
